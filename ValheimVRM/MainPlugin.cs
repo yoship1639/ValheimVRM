@@ -2,23 +2,26 @@
 using HarmonyLib;
 using System.Reflection;
 
-[BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-[BepInProcess("valheim.exe")]
-public class MainPlugin : BaseUnityPlugin
+namespace ValheimVRM
 {
-    public const string PluginGuid = "com.yoship1639.plugins.valheimvrm";
-    public const string PluginName = "ValheimVRM";
-    public const string PluginVersion = "1.0.0.0";
-
-    void Awake()
+    [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
+    [BepInProcess("valheim.exe")]
+    public class MainPlugin : BaseUnityPlugin
     {
-        // Harmonyパッチ作成
-        var harmony = new Harmony("com.yoship1639.plugins.valheimvrm.patch");
+        public const string PluginGuid = "com.yoship1639.plugins.valheimvrm";
+        public const string PluginName = "ValheimVRM";
+        public const string PluginVersion = "1.0.0.0";
 
-        // Harmonyパッチ全てを適用する
-        harmony.PatchAll();
+        void Awake()
+        {
+            // Harmonyパッチ作成
+            var harmony = new Harmony("com.yoship1639.plugins.valheimvrm.patch");
 
-        // MToonシェーダ初期化
-        VRMShaders.Initialize();
+            // Harmonyパッチ全てを適用する
+            harmony.PatchAll();
+
+            // MToonシェーダ初期化
+            VRMShaders.Initialize();
+        }
     }
 }
