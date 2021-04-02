@@ -56,10 +56,60 @@ namespace ValheimVRM
 
 			visEq.SetHairItem("");
 			visEq.SetBeardItem("");
-			visEq.SetHelmetItem("");
 			visEq.SetChestItem("");
 			visEq.SetLegItem("");
 			visEq.SetShoulderItem("", 0);
+		}
+	}
+
+	[HarmonyPatch(typeof(VisEquipment), "UpdateEquipmentVisuals")]
+	static class Patch_VisEquipment_UpdateEquipmentVisuals
+	{
+		[HarmonyPostfix]
+		static void Postfix(VisEquipment __instance)
+		{
+			if (!__instance.m_isPlayer) return;
+			//var player = __instance.GetComponent<Player>();
+
+			// 頭装備は非表示にするだけにする
+			ref var helmet = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_helmetItemInstance").Invoke(__instance);
+			if (helmet != null) SetVisible(helmet);
+		}
+
+		private static void SetVisible(GameObject obj)
+		{
+			foreach (var mr in obj.GetComponentsInChildren<MeshRenderer>()) mr.enabled = false;
+			foreach (var smr in obj.GetComponentsInChildren<SkinnedMeshRenderer>()) smr.enabled = false;
+		}
+	}
+
+	[HarmonyPatch(typeof(Humanoid), "OnRagdollCreated")]
+	static class Patch_Humanoid_OnRagdollCreated
+	{
+		[HarmonyPostfix]
+		static void Postfix(Humanoid __instance, Ragdoll ragdoll)
+		{
+			if (!__instance.IsPlayer()) return;
+
+			foreach (var smr in ragdoll.GetComponentsInChildren<SkinnedMeshRenderer>())
+			{
+				smr.forceRenderingOff = true;
+				smr.updateWhenOffscreen = true;
+			}
+			
+
+			var ragAnim = ragdoll.gameObject.AddComponent<Animator>();
+			ragAnim.keepAnimatorControllerStateOnDisable = true;
+			ragAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+
+			var orgAnim = AccessTools.FieldRefAccess<Player, Animator>((Player)__instance, "m_animator");
+			ragAnim.avatar = orgAnim.avatar;
+
+			if (Patch_Player_Awake.PlayerToVrmDic.TryGetValue((Player)__instance, out var vrm))
+			{
+				vrm.transform.SetParent(ragdoll.transform);
+				vrm.GetComponent<VRMAnimationSync>().Setup(ragAnim, true);
+			}
 		}
 	}
 
@@ -67,6 +117,7 @@ namespace ValheimVRM
 	static class Patch_Player_Awake
 	{
 		private static Dictionary<string, GameObject> vrmDic = new Dictionary<string, GameObject>();
+		public static Dictionary<Player, GameObject> PlayerToVrmDic = new Dictionary<Player, GameObject>();
 
 		[HarmonyPostfix]
 		static void Postfix(Player __instance)
@@ -156,6 +207,7 @@ namespace ValheimVRM
 			if (!string.IsNullOrEmpty(playerName) && vrmDic.ContainsKey(playerName))
 			{
 				var vrmModel = GameObject.Instantiate(vrmDic[playerName]);
+				PlayerToVrmDic[__instance] = vrmModel;
 				vrmModel.SetActive(true);
 				vrmModel.transform.SetParent(__instance.GetComponentInChildren<Animator>().transform.parent, false);
 
@@ -228,9 +280,11 @@ namespace ValheimVRM
 		private HumanPoseHandler orgPose, vrmPose;
 		private HumanPose hp = new HumanPose();
 		private float height = 0.0f;
+		private bool ragdoll;
 
-		public void Setup(Animator orgAnim)
+		public void Setup(Animator orgAnim, bool isRagdoll = false)
 		{
+			this.ragdoll = isRagdoll;
 			this.orgAnim = orgAnim;
 			this.vrmAnim = GetComponent<Animator>();
 			this.vrmAnim.applyRootMotion = true;
@@ -261,6 +315,7 @@ namespace ValheimVRM
 
 		void Update()
 		{
+			if (ragdoll) return;
 			for (var i = 0; i < 55; i++)
 			{
 				var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
@@ -280,14 +335,17 @@ namespace ValheimVRM
 
 			var posY = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position.y;
 
-			for (var i = 0; i < 55; i++)
+			if (!ragdoll)
 			{
-				var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
-				var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
-
-				if (i > 0 && orgTrans != null && vrmTrans != null)
+				for (var i = 0; i < 55; i++)
 				{
-					orgTrans.position = vrmTrans.position;
+					var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
+					var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
+
+					if (i > 0 && orgTrans != null && vrmTrans != null)
+					{
+						orgTrans.position = vrmTrans.position;
+					}
 				}
 			}
 
