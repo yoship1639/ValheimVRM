@@ -59,6 +59,7 @@ namespace ValheimVRM
 			visEq.SetChestItem("");
 			visEq.SetLegItem("");
 			visEq.SetShoulderItem("", 0);
+			visEq.SetUtilityItem("");
 		}
 	}
 
@@ -122,7 +123,8 @@ namespace ValheimVRM
 		[HarmonyPostfix]
 		static void Postfix(Player __instance)
 		{
-			var playerName = Game.instance != null ? Game.instance.GetPlayerProfile().GetName() : null;
+			var playerName = __instance.GetPlayerName();
+			if (playerName == "" || playerName == "...") playerName = Game.instance != null ? Game.instance.GetPlayerProfile().GetName() : null;
 			if (!string.IsNullOrEmpty(playerName) && !vrmDic.ContainsKey(playerName))
 			{
 				var path = Environment.CurrentDirectory + $"/ValheimVRM/{playerName}.vrm";
@@ -223,8 +225,16 @@ namespace ValheimVRM
 
 				vrmModel.transform.localPosition = orgAnim.transform.localPosition;
 
+				// アニメーション同期
 				if (vrmModel.GetComponent<VRMAnimationSync>() == null) vrmModel.AddComponent<VRMAnimationSync>().Setup(orgAnim);
 				else vrmModel.GetComponent<VRMAnimationSync>().Setup(orgAnim);
+
+				// カメラ位置調整
+				if (Settings.ReadBool(playerName, "FixCameraHeight", true))
+				{
+					var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
+					__instance.gameObject.AddComponent<EyeSync>().Setup(vrmEye);
+				}
 			}
 		}
 
@@ -352,6 +362,25 @@ namespace ValheimVRM
 			var pos = vrmAnim.transform.position;
 			pos.y = posY + height;
 			vrmAnim.transform.position = pos;
+		}
+	}
+
+	public class EyeSync : MonoBehaviour
+	{
+		private Transform vrmEye;
+		private Transform orgEye;
+
+		public void Setup(Transform vrmEye)
+		{
+			this.vrmEye = vrmEye;
+			this.orgEye = GetComponent<Player>().m_eye;
+		}
+
+		void Update()
+		{
+			var pos = this.orgEye.position;
+			pos.y = this.vrmEye.position.y;
+			this.orgEye.position = pos;
 		}
 	}
 }
