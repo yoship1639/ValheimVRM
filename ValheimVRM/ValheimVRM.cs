@@ -39,7 +39,7 @@ namespace ValheimVRM
 				var assets = assetBundle.LoadAllAssets<Shader>();
 				foreach (var asset in assets)
 				{
-					UnityEngine.Debug.Log("Add Shader: " + asset.name);
+					UnityEngine.Debug.Log("[ValheimVRM] Add Shader: " + asset.name);
 					Shaders.Add(asset.name, asset);
 				}
 			}
@@ -131,14 +131,14 @@ namespace ValheimVRM
 
 				if (!File.Exists(path))
 				{
-					Debug.LogError("VRMファイルが見つかりません.");
-					Debug.LogError("読み込み予定だったVRMファイルパス: " + path);
+					Debug.LogError("[ValheimVRM] VRMファイルが見つかりません.");
+					Debug.LogError("[ValheimVRM] 読み込み予定だったVRMファイルパス: " + path);
 				}
 				else
 				{
 					if (!File.Exists(Settings.PlayerSettingsPath(playerName)))
 					{
-						Debug.LogWarning("設定ファイルが見つかりません.以下の設定ファイルが存在するか確認してください: " + Settings.PlayerSettingsPath(playerName));
+						Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりません.以下の設定ファイルが存在するか確認してください: " + Settings.PlayerSettingsPath(playerName));
 					}
 
 					var scale = Settings.ReadFloat(playerName, "ModelScale", 1.1f);
@@ -266,8 +266,8 @@ namespace ValheimVRM
 
 					context.Root.transform.localScale *= scale;
 
-					Debug.Log("VRM読み込み成功");
-					Debug.Log("VRMファイルパス: " + path);
+					Debug.Log("[ValheimVRM] VRM読み込み成功");
+					Debug.Log("[ValheimVRM] VRMファイルパス: " + path);
 
 					// 7. Root の GameObject を return します。
 					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。

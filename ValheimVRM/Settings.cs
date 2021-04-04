@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Globalization;
 using System.IO;
 using UnityEngine;
 
@@ -41,33 +42,45 @@ namespace ValheimVRM
 
             if (retval == null)
             {
-                Debug.LogWarning("設定項目が見つかりません: " + key);
+                Debug.LogWarning("[ValheimVRM] 設定項目が見つかりません: " + key);
             }
 
             return retval;
         }
 
-        public static int ReadInt(string playername, string key, int defaultValue = 0)
+        public static int ReadInt(string playername, string key, int defaultValue = 0, bool debugLog = true)
         {
             var str = ReadSettings(playername, key);
             var res = defaultValue;
-            if (int.TryParse(str, out res)) return res;
+            if (int.TryParse(str, NumberStyles.Integer, CultureInfo.InvariantCulture, out res))
+            {
+                if (debugLog) Debug.Log("[ValheimVRM] " + key + ": " + res);
+                return res;
+            } 
             return defaultValue;
         }
 
-        public static float ReadFloat(string playername, string key, float defaultValue = 0.0f)
+        public static float ReadFloat(string playername, string key, float defaultValue = 0.0f, bool debugLog = true)
         {
             var str = ReadSettings(playername, key);
             var res = defaultValue;
-            if (float.TryParse(str, out res)) return res;
+            if (float.TryParse(str, NumberStyles.Float, CultureInfo.InvariantCulture, out res))
+            {
+                if (debugLog) Debug.Log("[ValheimVRM] " + key + ": " + res);
+                return res;
+            }
             return defaultValue;
         }
 
-        public static bool ReadBool(string playername, string key, bool defaultValue = false)
+        public static bool ReadBool(string playername, string key, bool defaultValue = false, bool debugLog = true)
         {
             var str = ReadSettings(playername, key);
             var res = defaultValue;
-            if (bool.TryParse(str, out res)) return res;
+            if (bool.TryParse(str, out res))
+            {
+                if (debugLog) Debug.Log("[ValheimVRM] " + key + ": " + res);
+                return res;
+            }
             return defaultValue;
         }
     }
