@@ -143,66 +143,71 @@ namespace ValheimVRM
 
 					var scale = Settings.ReadFloat(playerName, "ModelScale", 1.1f);
 					var orgVrm = ImportVRM(path, scale);
-					GameObject.DontDestroyOnLoad(orgVrm);
-					vrmDic[playerName] = orgVrm;
-
-					//[Error: Unity Log] _Cutoff: Range
-					//[Error: Unity Log] _MainTex: Texture
-					//[Error: Unity Log] _SkinBumpMap: Texture
-					//[Error: Unity Log] _SkinColor: Color
-					//[Error: Unity Log] _ChestTex: Texture
-					//[Error: Unity Log] _ChestBumpMap: Texture
-					//[Error: Unity Log] _ChestMetal: Texture
-					//[Error: Unity Log] _LegsTex: Texture
-					//[Error: Unity Log] _LegsBumpMap: Texture
-					//[Error: Unity Log] _LegsMetal: Texture
-					//[Error: Unity Log] _BumpScale: Float
-					//[Error: Unity Log] _Glossiness: Range
-					//[Error: Unity Log] _MetalGlossiness: Range
-
-					// シェーダ差し替え
-					var brightness = Settings.ReadFloat(playerName, "ModelBrightness", 0.8f);
-					var shader = Shader.Find("Custom/Player");
-					foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+					if (orgVrm != null)
 					{
-						foreach (var mat in smr.materials)
+						GameObject.DontDestroyOnLoad(orgVrm);
+						vrmDic[playerName] = orgVrm;
+
+						//[Error: Unity Log] _Cutoff: Range
+						//[Error: Unity Log] _MainTex: Texture
+						//[Error: Unity Log] _SkinBumpMap: Texture
+						//[Error: Unity Log] _SkinColor: Color
+						//[Error: Unity Log] _ChestTex: Texture
+						//[Error: Unity Log] _ChestBumpMap: Texture
+						//[Error: Unity Log] _ChestMetal: Texture
+						//[Error: Unity Log] _LegsTex: Texture
+						//[Error: Unity Log] _LegsBumpMap: Texture
+						//[Error: Unity Log] _LegsMetal: Texture
+						//[Error: Unity Log] _BumpScale: Float
+						//[Error: Unity Log] _Glossiness: Range
+						//[Error: Unity Log] _MetalGlossiness: Range
+
+						// シェーダ差し替え
+						var brightness = Settings.ReadFloat(playerName, "ModelBrightness", 0.8f);
+						var shader = Shader.Find("Custom/Player");
+						foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
 						{
-
-							if (mat.shader == shader) continue;
-
-							var color = mat.GetColor("_Color");
-
-							var mainTex = mat.GetTexture("_MainTex") as Texture2D;
-							var tex = new Texture2D(mainTex.width, mainTex.height);
-							var colors = mainTex.GetPixels();
-							for (var i = 0; i < colors.Length; i++)
+							foreach (var mat in smr.materials)
 							{
-								var col = colors[i] * color;
-								float h, s, v;
-								Color.RGBToHSV(col, out h, out s, out v);
-								v *= brightness;
-								colors[i] = Color.HSVToRGB(h, s, v);
-								colors[i].a = col.a;
+								if (mat.shader == shader) continue;
+
+								var color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
+
+								var mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") as Texture2D : null;
+								Texture2D tex = mainTex;
+								if (mainTex != null)
+								{
+									tex = new Texture2D(mainTex.width, mainTex.height);
+									var colors = mainTex.GetPixels();
+									for (var i = 0; i < colors.Length; i++)
+									{
+										var col = colors[i] * color;
+										float h, s, v;
+										Color.RGBToHSV(col, out h, out s, out v);
+										v *= brightness;
+										colors[i] = Color.HSVToRGB(h, s, v);
+										colors[i].a = col.a;
+									}
+									tex.SetPixels(colors);
+									tex.Apply();
+								}
+
+								var bumpMap = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
+								mat.shader = shader;
+
+								mat.SetTexture("_MainTex", tex);
+								mat.SetTexture("_SkinBumpMap", bumpMap);
+								mat.SetColor("_SkinColor", color);
+								mat.SetTexture("_ChestTex", tex);
+								mat.SetTexture("_ChestBumpMap", bumpMap);
+								mat.SetTexture("_LegsTex", tex);
+								mat.SetTexture("_LegsBumpMap", bumpMap);
+								mat.SetFloat("_Glossiness", 0.2f);
+								mat.SetFloat("_MetalGlossiness", 0.0f);
 							}
-							tex.SetPixels(colors);
-							tex.Apply();
-
-							var bumpMap = mat.GetTexture("_BumpMap");
-							mat.shader = shader;
-
-							mat.SetTexture("_MainTex", tex);
-							mat.SetTexture("_SkinBumpMap", bumpMap);
-							mat.SetColor("_SkinColor", color);
-							mat.SetTexture("_ChestTex", tex);
-							mat.SetTexture("_ChestBumpMap", bumpMap);
-							mat.SetTexture("_LegsTex", tex);
-							mat.SetTexture("_LegsBumpMap", bumpMap);
-							mat.SetFloat("_Glossiness", 0.2f);
-							mat.SetFloat("_MetalGlossiness", 0.0f);
 						}
+						orgVrm.SetActive(false);
 					}
-
-					orgVrm.SetActive(false);
 				}
 			}
 
