@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using UnityEngine;
@@ -10,17 +11,43 @@ namespace ValheimVRM
 		public static readonly string ValheimVRMDir = Environment.CurrentDirectory + @"\ValheimVRM";
 
 		public static string PlayerSettingsPath(string playerName) => ValheimVRMDir + $"/settings_{playerName}.txt";
+        private static Dictionary<string, string[]> playerSettings = new Dictionary<string, string[]>();
+
+        public static void AddSettings(string playerName, string[] settings)
+        {
+            playerSettings[playerName] = settings;
+        }
+
+        public static string[] GetSettings(string playerName)
+        {
+            return playerSettings.ContainsKey(playerName) ? playerSettings[playerName] : null;
+        }
+
+        public static bool AddSettingsFromFile(string playerName)
+        {
+            var path = PlayerSettingsPath(playerName);
+            if (File.Exists(path))
+            {
+                playerSettings[playerName] = File.ReadAllLines(path);
+                return true;
+            }
+            return false;
+        }
+
+        public static bool ContainsSettings(string playerName)
+        {
+            return playerSettings.ContainsKey(playerName);
+        }
 
         public static string ReadSettings(string playername, string key)
         {
+            if (!playerSettings.ContainsKey(playername)) return null;
+
             string retval = null;
 
             try
             {
-                var settingsPath = PlayerSettingsPath(playername);
-                if (!File.Exists(settingsPath)) return null;
-
-                var lines = File.ReadAllLines(settingsPath);
+                var lines = playerSettings[playername];
                 foreach (var line in lines)
                 {
                     try

@@ -46,22 +46,23 @@ namespace ValheimVRM
 		}
 	}
 
-	[HarmonyPatch(typeof(Humanoid), "SetupVisEquipment")]
-	static class Patch_Humanoid_SetupVisEquipment
+	public static class VRMModels
 	{
-		[HarmonyPostfix]
-		static void Postfix(Humanoid __instance, VisEquipment visEq, bool isRagdoll)
-		{
-			if (!__instance.IsPlayer()) return;
-
-			visEq.SetHairItem("");
-			visEq.SetBeardItem("");
-			visEq.SetChestItem("");
-			visEq.SetLegItem("");
-			visEq.SetShoulderItem("", 0);
-			visEq.SetUtilityItem("");
-		}
+		public static Dictionary<string, byte[]> VrmBufDic = new Dictionary<string, byte[]>();
+		public static Dictionary<Player, GameObject> PlayerToVrmDic = new Dictionary<Player, GameObject>();
+		public static Dictionary<Player, string> PlayerToNameDic = new Dictionary<Player, string>();
 	}
+
+	//[HarmonyPatch(typeof(FejdStartup), "InitializeSteam")]
+	//static class Patch_FejdStartup_InitializeSteam
+	//{
+	//	[HarmonyPrefix]
+	//	static bool Prefix(FejdStartup __instance, out bool __result)
+	//	{
+	//		__result = true;
+	//		return false;
+	//	}
+	//}
 
 	[HarmonyPatch(typeof(VisEquipment), "UpdateEquipmentVisuals")]
 	static class Patch_VisEquipment_UpdateEquipmentVisuals
@@ -70,17 +71,35 @@ namespace ValheimVRM
 		static void Postfix(VisEquipment __instance)
 		{
 			if (!__instance.m_isPlayer) return;
-			//var player = __instance.GetComponent<Player>();
+			var player = __instance.GetComponent<Player>();
+			if (player == null || !VRMModels.PlayerToVrmDic.ContainsKey(player)) return;
 
-			// 頭装備は非表示にするだけにする
+			ref var hair = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_hairItemInstance").Invoke(__instance);
+			if (hair != null) SetVisible(hair, false);
+
+			ref var beard = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_beardItemInstance").Invoke(__instance);
+			if (beard != null) SetVisible(beard, false);
+
+			ref var chestList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_chestItemInstances").Invoke(__instance);
+			if (chestList != null) foreach (var chest in chestList) SetVisible(chest, false);
+
+			ref var legList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_legItemInstances").Invoke(__instance);
+			if (legList != null) foreach (var leg in legList) SetVisible(leg, false);
+
+			ref var shoulderList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_shoulderItemInstances").Invoke(__instance);
+			if (shoulderList != null) foreach (var shoulder in shoulderList) SetVisible(shoulder, false);
+
+			ref var utilityList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_utilityItemInstances").Invoke(__instance);
+			if (utilityList != null) foreach (var utility in utilityList) SetVisible(utility, false);
+
 			ref var helmet = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_helmetItemInstance").Invoke(__instance);
-			if (helmet != null) SetVisible(helmet);
+			if (helmet != null) SetVisible(helmet, false);
 		}
 
-		private static void SetVisible(GameObject obj)
+		private static void SetVisible(GameObject obj, bool flag)
 		{
-			foreach (var mr in obj.GetComponentsInChildren<MeshRenderer>()) mr.enabled = false;
-			foreach (var smr in obj.GetComponentsInChildren<SkinnedMeshRenderer>()) smr.enabled = false;
+			foreach (var mr in obj.GetComponentsInChildren<MeshRenderer>()) mr.enabled = flag;
+			foreach (var smr in obj.GetComponentsInChildren<SkinnedMeshRenderer>()) smr.enabled = flag;
 		}
 	}
 
@@ -106,10 +125,25 @@ namespace ValheimVRM
 			var orgAnim = AccessTools.FieldRefAccess<Player, Animator>((Player)__instance, "m_animator");
 			ragAnim.avatar = orgAnim.avatar;
 
-			if (Patch_Player_Awake.PlayerToVrmDic.TryGetValue((Player)__instance, out var vrm))
+			if (VRMModels.PlayerToVrmDic.TryGetValue((Player)__instance, out var vrm))
 			{
 				vrm.transform.SetParent(ragdoll.transform);
 				vrm.GetComponent<VRMAnimationSync>().Setup(ragAnim, true);
+			}
+		}
+	}
+
+	[HarmonyPatch(typeof(Player), "OnDeath")]
+	static class Patch_Player_OnDeath
+	{
+		[HarmonyPostfix]
+		static void Postfix(Player __instance)
+		{
+			string name = null;
+			if (VRMModels.PlayerToNameDic.ContainsKey(__instance)) name = VRMModels.PlayerToNameDic[__instance];
+			if (name != null && Settings.ReadBool(name, "FixCameraHeight", true))
+			{
+				GameObject.Destroy(__instance.GetComponent<EyeSync>());
 			}
 		}
 	}
@@ -118,7 +152,6 @@ namespace ValheimVRM
 	static class Patch_Player_Awake
 	{
 		private static Dictionary<string, GameObject> vrmDic = new Dictionary<string, GameObject>();
-		public static Dictionary<Player, GameObject> PlayerToVrmDic = new Dictionary<Player, GameObject>();
 
 		[HarmonyPostfix]
 		static void Postfix(Player __instance)
@@ -129,24 +162,41 @@ namespace ValheimVRM
 			{
 				var path = Environment.CurrentDirectory + $"/ValheimVRM/{playerName}.vrm";
 
-				if (!File.Exists(path))
+				ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
+				byte[] vrmData = null;
+				if (m_nview != null && m_nview.GetZDO() != null) vrmData = m_nview.GetZDO().GetByteArray("vrmData");
+
+				if (vrmData == null && !File.Exists(path))
 				{
 					Debug.LogError("[ValheimVRM] VRMファイルが見つかりません.");
 					Debug.LogError("[ValheimVRM] 読み込み予定だったVRMファイルパス: " + path);
 				}
 				else
 				{
-					if (!File.Exists(Settings.PlayerSettingsPath(playerName)))
+					if (!Settings.ContainsSettings(playerName))
 					{
-						Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりません.以下の設定ファイルが存在するか確認してください: " + Settings.PlayerSettingsPath(playerName));
+						if (vrmData == null && !Settings.AddSettingsFromFile(playerName))
+						{
+							Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりません.以下の設定ファイルが存在するか確認してください: " + Settings.PlayerSettingsPath(playerName));
+						}
+						else if (vrmData != null)
+						{
+							if (m_nview != null && m_nview.GetZDO() != null)
+							{
+								var settings = m_nview.GetZDO().GetString("vrmSettings");
+								if (settings != "") Settings.AddSettings(playerName, settings.Split('\n'));
+								else Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりませんでした: " + playerName);
+							}
+						}
 					}
 
 					var scale = Settings.ReadFloat(playerName, "ModelScale", 1.1f);
-					var orgVrm = ImportVRM(path, scale);
+					var orgVrm = vrmData != null ? ImportVRM(vrmData, scale) : ImportVRM(path, scale);
 					if (orgVrm != null)
 					{
 						GameObject.DontDestroyOnLoad(orgVrm);
 						vrmDic[playerName] = orgVrm;
+						VRMModels.VrmBufDic[playerName] = File.ReadAllBytes(path);
 
 						//[Error: Unity Log] _Cutoff: Range
 						//[Error: Unity Log] _MainTex: Texture
@@ -207,6 +257,18 @@ namespace ValheimVRM
 							}
 						}
 						orgVrm.SetActive(false);
+
+						// VRMデータの共有設定
+						if (Settings.ReadBool(playerName, "AllowVRMShare", false))
+						{
+							//ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
+							//if (m_nview.GetZDO() != null && VRMModels.VrmBufDic.ContainsKey(playerName))
+							//{
+							//	Debug.LogError("VRMデータをセット");
+							//	m_nview.GetZDO().Set("vrmData", VRMModels.VrmBufDic[playerName]);
+							//	m_nview.GetZDO().Set("vrmSettings", string.Join("\n", Settings.GetSettings(playerName)));
+							//}
+						}
 					}
 				}
 			}
@@ -214,7 +276,8 @@ namespace ValheimVRM
 			if (!string.IsNullOrEmpty(playerName) && vrmDic.ContainsKey(playerName))
 			{
 				var vrmModel = GameObject.Instantiate(vrmDic[playerName]);
-				PlayerToVrmDic[__instance] = vrmModel;
+				VRMModels.PlayerToVrmDic[__instance] = vrmModel;
+				VRMModels.PlayerToNameDic[__instance] = playerName;
 				vrmModel.SetActive(true);
 				vrmModel.transform.SetParent(__instance.GetComponentInChildren<Animator>().transform.parent, false);
 
@@ -231,14 +294,16 @@ namespace ValheimVRM
 				vrmModel.transform.localPosition = orgAnim.transform.localPosition;
 
 				// アニメーション同期
-				if (vrmModel.GetComponent<VRMAnimationSync>() == null) vrmModel.AddComponent<VRMAnimationSync>().Setup(orgAnim);
-				else vrmModel.GetComponent<VRMAnimationSync>().Setup(orgAnim);
+				var offsetY = Settings.ReadFloat(playerName, "ModelOffsetY");
+				if (vrmModel.GetComponent<VRMAnimationSync>() == null) vrmModel.AddComponent<VRMAnimationSync>().Setup(orgAnim, false, offsetY);
+				else vrmModel.GetComponent<VRMAnimationSync>().Setup(orgAnim, false, offsetY);
 
 				// カメラ位置調整
 				if (Settings.ReadBool(playerName, "FixCameraHeight", true))
 				{
 					var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
-					__instance.gameObject.AddComponent<EyeSync>().Setup(vrmEye);
+					if (__instance.gameObject.GetComponent<EyeSync>() == null) __instance.gameObject.AddComponent<EyeSync>().Setup(vrmEye);
+					else __instance.gameObject.GetComponent<EyeSync>().Setup(vrmEye);
 				}
 			}
 		}
@@ -286,6 +351,49 @@ namespace ValheimVRM
 
 			return null;
 		}
+
+		private static GameObject ImportVRM(byte[] buf, float scale)
+		{
+			try
+			{
+				// 1. GltfParser を呼び出します。
+				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
+				var parser = new GltfParser();
+				parser.ParseGlb(buf);
+
+				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
+				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
+				using (var context = new VRMImporterContext(parser))
+				{
+					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
+					context.Load();
+
+					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
+					context.EnableUpdateWhenOffscreen();
+
+					// 5. VRM モデルを表示します。
+					context.ShowMeshes();
+
+					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
+					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
+					context.DisposeOnGameObjectDestroyed();
+
+					context.Root.transform.localScale *= scale;
+
+					Debug.Log("[ValheimVRM] VRM読み込み成功");
+
+					// 7. Root の GameObject を return します。
+					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
+					return context.Root;
+				}
+			}
+			catch (Exception ex)
+			{
+				Debug.LogError(ex);
+			}
+
+			return null;
+		}
 	}
 
 	[DefaultExecutionOrder(int.MaxValue)]
@@ -296,10 +404,12 @@ namespace ValheimVRM
 		private HumanPose hp = new HumanPose();
 		private float height = 0.0f;
 		private bool ragdoll;
+		private float offset;
 
-		public void Setup(Animator orgAnim, bool isRagdoll = false)
+		public void Setup(Animator orgAnim, bool isRagdoll = false, float offset = 0.0f)
 		{
 			this.ragdoll = isRagdoll;
+			this.offset = offset;
 			this.orgAnim = orgAnim;
 			this.vrmAnim = GetComponent<Animator>();
 			this.vrmAnim.applyRootMotion = true;
@@ -365,7 +475,7 @@ namespace ValheimVRM
 			}
 
 			var pos = vrmAnim.transform.position;
-			pos.y = posY + height;
+			pos.y = posY + height + offset;
 			vrmAnim.transform.position = pos;
 		}
 	}
