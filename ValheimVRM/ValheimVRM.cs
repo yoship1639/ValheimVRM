@@ -214,48 +214,69 @@ namespace ValheimVRM
 
 						// シェーダ差し替え
 						var brightness = Settings.ReadFloat(playerName, "ModelBrightness", 0.8f);
-						var shader = Shader.Find("Custom/Player");
-						foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+						if (Settings.ReadBool(playerName, "UseMToonShader", false))
 						{
-							foreach (var mat in smr.materials)
+							foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
 							{
-								if (mat.shader == shader) continue;
-
-								var color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
-
-								var mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") as Texture2D : null;
-								Texture2D tex = mainTex;
-								if (mainTex != null)
+								foreach (var mat in smr.materials)
 								{
-									tex = new Texture2D(mainTex.width, mainTex.height);
-									var colors = mainTex.GetPixels();
-									for (var i = 0; i < colors.Length; i++)
+									if (mat.HasProperty("_Color"))
 									{
-										var col = colors[i] * color;
-										float h, s, v;
-										Color.RGBToHSV(col, out h, out s, out v);
-										v *= brightness;
-										colors[i] = Color.HSVToRGB(h, s, v);
-										colors[i].a = col.a;
+										var color = mat.GetColor("_Color");
+										color.r *= brightness;
+										color.g *= brightness;
+										color.b *= brightness;
+										mat.SetColor("_Color", color);
 									}
-									tex.SetPixels(colors);
-									tex.Apply();
 								}
-
-								var bumpMap = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
-								mat.shader = shader;
-
-								mat.SetTexture("_MainTex", tex);
-								mat.SetTexture("_SkinBumpMap", bumpMap);
-								mat.SetColor("_SkinColor", color);
-								mat.SetTexture("_ChestTex", tex);
-								mat.SetTexture("_ChestBumpMap", bumpMap);
-								mat.SetTexture("_LegsTex", tex);
-								mat.SetTexture("_LegsBumpMap", bumpMap);
-								mat.SetFloat("_Glossiness", 0.2f);
-								mat.SetFloat("_MetalGlossiness", 0.0f);
 							}
 						}
+						else
+						{
+							var shader = Shader.Find("Custom/Player");
+							foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+							{
+								foreach (var mat in smr.materials)
+								{
+									if (mat.shader == shader) continue;
+
+									var color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
+
+									var mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") as Texture2D : null;
+									Texture2D tex = mainTex;
+									if (mainTex != null)
+									{
+										tex = new Texture2D(mainTex.width, mainTex.height);
+										var colors = mainTex.GetPixels();
+										for (var i = 0; i < colors.Length; i++)
+										{
+											var col = colors[i] * color;
+											float h, s, v;
+											Color.RGBToHSV(col, out h, out s, out v);
+											v *= brightness;
+											colors[i] = Color.HSVToRGB(h, s, v);
+											colors[i].a = col.a;
+										}
+										tex.SetPixels(colors);
+										tex.Apply();
+									}
+
+									var bumpMap = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
+									mat.shader = shader;
+
+									mat.SetTexture("_MainTex", tex);
+									mat.SetTexture("_SkinBumpMap", bumpMap);
+									mat.SetColor("_SkinColor", color);
+									mat.SetTexture("_ChestTex", tex);
+									mat.SetTexture("_ChestBumpMap", bumpMap);
+									mat.SetTexture("_LegsTex", tex);
+									mat.SetTexture("_LegsBumpMap", bumpMap);
+									mat.SetFloat("_Glossiness", 0.2f);
+									mat.SetFloat("_MetalGlossiness", 0.0f);
+								}
+							}
+						}
+						
 						orgVrm.SetActive(false);
 
 						// VRMデータの共有設定
@@ -304,6 +325,13 @@ namespace ValheimVRM
 					var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
 					if (__instance.gameObject.GetComponent<EyeSync>() == null) __instance.gameObject.AddComponent<EyeSync>().Setup(vrmEye);
 					else __instance.gameObject.GetComponent<EyeSync>().Setup(vrmEye);
+				}
+
+				// MToonの場合環境光の影響をカラーに反映する
+				if (Settings.ReadBool(playerName, "UseMToonShader", false))
+				{
+					if (vrmModel.GetComponent<MToonColorSync>() == null) vrmModel.AddComponent<MToonColorSync>().Setup(vrmModel);
+					else vrmModel.GetComponent<MToonColorSync>().Setup(vrmModel);
 				}
 			}
 		}
@@ -496,6 +524,80 @@ namespace ValheimVRM
 			var pos = this.orgEye.position;
 			pos.y = this.vrmEye.position.y;
 			this.orgEye.position = pos;
+		}
+	}
+
+	public class MToonColorSync : MonoBehaviour
+	{
+		class MatColor
+		{
+			public Material mat;
+			public Color color;
+			public Color shadeColor;
+			public Color emission;
+		}
+
+		private int _SunFogColor;
+		private int _SunColor;
+		private int _AmbientColor;
+
+		private List<MatColor> matColors = new List<MatColor>();
+
+		void Awake()
+		{
+			_SunFogColor = Shader.PropertyToID("_SunFogColor");
+			_SunColor = Shader.PropertyToID("_SunColor");
+			_AmbientColor = Shader.PropertyToID("_AmbientColor");
+		}
+
+		public void Setup(GameObject vrm)
+		{
+			matColors.Clear();
+			foreach (var smr in vrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+			{
+				foreach (var mat in smr.materials)
+				{
+					if (!matColors.Exists(m => m.mat == mat))
+					{
+						matColors.Add(new MatColor()
+						{
+							mat = mat,
+							color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white,
+							shadeColor = mat.HasProperty("_ShadeColor") ? mat.GetColor("_ShadeColor") : Color.white,
+							emission = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black,
+						});
+					}
+				}
+			}
+		}
+
+		void Update()
+		{
+			var fog = Shader.GetGlobalColor(_SunFogColor);
+			var sun = Shader.GetGlobalColor(_SunColor);
+			var amb = Shader.GetGlobalColor(_AmbientColor);
+			var sunAmb = sun + amb;
+			if (sunAmb.maxColorComponent > 0.7f) sunAmb /= 0.3f + sunAmb.maxColorComponent;
+			//sunAmb *= 0.5f;
+
+			//Debug.LogError(fog + ", " + sun + ", " + amb);
+
+			foreach (var matColor in matColors)
+			{
+				var col = matColor.color * sunAmb;
+				col.a = matColor.color.a;
+				if (col.maxColorComponent > 1.0f) col /= col.maxColorComponent;
+
+				var shadeCol = matColor.shadeColor * sunAmb;
+				shadeCol.a = matColor.shadeColor.a;
+				if (shadeCol.maxColorComponent > 1.0f) shadeCol /= shadeCol.maxColorComponent;
+
+				var emi = matColor.emission * sunAmb.grayscale;
+
+				if (matColor.mat.HasProperty("_Color")) matColor.mat.SetColor("_Color", col);
+				if (matColor.mat.HasProperty("_ShadeColor")) matColor.mat.SetColor("_ShadeColor", shadeCol);
+				if (matColor.mat.HasProperty("_EmissionColor")) matColor.mat.SetColor("_EmissionColor", emi);
+			}
 		}
 	}
 }
