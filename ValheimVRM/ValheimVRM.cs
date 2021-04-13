@@ -64,8 +64,8 @@ namespace ValheimVRM
 	//	}
 	//}
 
-	[HarmonyPatch(typeof(VisEquipment), "UpdateEquipmentVisuals")]
-	static class Patch_VisEquipment_UpdateEquipmentVisuals
+	[HarmonyPatch(typeof(VisEquipment), "UpdateLodgroup")]
+	static class Patch_VisEquipment_UpdateLodgroup
 	{
 		[HarmonyPostfix]
 		static void Postfix(VisEquipment __instance)
@@ -535,9 +535,12 @@ namespace ValheimVRM
 			public Color color;
 			public Color shadeColor;
 			public Color emission;
+			public bool hasColor;
+			public bool hasShadeColor;
+			public bool hasEmission;
 		}
 
-		private int _SunFogColor;
+		//private int _SunFogColor;
 		private int _SunColor;
 		private int _AmbientColor;
 
@@ -545,7 +548,7 @@ namespace ValheimVRM
 
 		void Awake()
 		{
-			_SunFogColor = Shader.PropertyToID("_SunFogColor");
+			//_SunFogColor = Shader.PropertyToID("_SunFogColor");
 			_SunColor = Shader.PropertyToID("_SunColor");
 			_AmbientColor = Shader.PropertyToID("_AmbientColor");
 		}
@@ -565,6 +568,9 @@ namespace ValheimVRM
 							color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white,
 							shadeColor = mat.HasProperty("_ShadeColor") ? mat.GetColor("_ShadeColor") : Color.white,
 							emission = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black,
+							hasColor = mat.HasProperty("_Color"),
+							hasShadeColor = mat.HasProperty("_ShadeColor"),
+							hasEmission = mat.HasProperty("_EmissionColor"),
 						});
 					}
 				}
@@ -573,14 +579,11 @@ namespace ValheimVRM
 
 		void Update()
 		{
-			var fog = Shader.GetGlobalColor(_SunFogColor);
+			//var fog = Shader.GetGlobalColor(_SunFogColor);
 			var sun = Shader.GetGlobalColor(_SunColor);
 			var amb = Shader.GetGlobalColor(_AmbientColor);
 			var sunAmb = sun + amb;
 			if (sunAmb.maxColorComponent > 0.7f) sunAmb /= 0.3f + sunAmb.maxColorComponent;
-			//sunAmb *= 0.5f;
-
-			//Debug.LogError(fog + ", " + sun + ", " + amb);
 
 			foreach (var matColor in matColors)
 			{
@@ -594,9 +597,9 @@ namespace ValheimVRM
 
 				var emi = matColor.emission * sunAmb.grayscale;
 
-				if (matColor.mat.HasProperty("_Color")) matColor.mat.SetColor("_Color", col);
-				if (matColor.mat.HasProperty("_ShadeColor")) matColor.mat.SetColor("_ShadeColor", shadeCol);
-				if (matColor.mat.HasProperty("_EmissionColor")) matColor.mat.SetColor("_EmissionColor", emi);
+				if (matColor.hasColor) matColor.mat.SetColor("_Color", col);
+				if (matColor.hasShadeColor) matColor.mat.SetColor("_ShadeColor", shadeCol);
+				if (matColor.hasEmission) matColor.mat.SetColor("_EmissionColor", emi);
 			}
 		}
 	}
