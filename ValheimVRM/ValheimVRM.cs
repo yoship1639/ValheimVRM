@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using UniGLTF;
 using UnityEngine;
+using UnityEngine.UI;
 using VRM;
 
 namespace ValheimVRM
@@ -53,17 +54,6 @@ namespace ValheimVRM
 		public static Dictionary<Player, string> PlayerToNameDic = new Dictionary<Player, string>();
 	}
 
-	//[HarmonyPatch(typeof(FejdStartup), "InitializeSteam")]
-	//static class Patch_FejdStartup_InitializeSteam
-	//{
-	//	[HarmonyPrefix]
-	//	static bool Prefix(FejdStartup __instance, out bool __result)
-	//	{
-	//		__result = true;
-	//		return false;
-	//	}
-	//}
-
 	[HarmonyPatch(typeof(VisEquipment), "UpdateLodgroup")]
 	static class Patch_VisEquipment_UpdateLodgroup
 	{
@@ -74,25 +64,25 @@ namespace ValheimVRM
 			var player = __instance.GetComponent<Player>();
 			if (player == null || !VRMModels.PlayerToVrmDic.ContainsKey(player)) return;
 
-			ref var hair = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_hairItemInstance").Invoke(__instance);
+			var hair = __instance.GetField<VisEquipment, GameObject>("m_hairItemInstance");
 			if (hair != null) SetVisible(hair, false);
 
-			ref var beard = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_beardItemInstance").Invoke(__instance);
+			var beard = __instance.GetField<VisEquipment, GameObject>("m_beardItemInstance");
 			if (beard != null) SetVisible(beard, false);
 
-			ref var chestList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_chestItemInstances").Invoke(__instance);
+			var chestList = __instance.GetField<VisEquipment, List<GameObject>>("m_chestItemInstances");
 			if (chestList != null) foreach (var chest in chestList) SetVisible(chest, false);
 
-			ref var legList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_legItemInstances").Invoke(__instance);
+			var legList = __instance.GetField<VisEquipment, List<GameObject>>("m_legItemInstances");
 			if (legList != null) foreach (var leg in legList) SetVisible(leg, false);
 
-			ref var shoulderList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_shoulderItemInstances").Invoke(__instance);
+			var shoulderList = __instance.GetField<VisEquipment, List<GameObject>>("m_shoulderItemInstances");
 			if (shoulderList != null) foreach (var shoulder in shoulderList) SetVisible(shoulder, false);
 
-			ref var utilityList = ref AccessTools.FieldRefAccess<VisEquipment, List<GameObject>>("m_utilityItemInstances").Invoke(__instance);
+			var utilityList = __instance.GetField<VisEquipment, List<GameObject>>("m_utilityItemInstances");
 			if (utilityList != null) foreach (var utility in utilityList) SetVisible(utility, false);
 
-			ref var helmet = ref AccessTools.FieldRefAccess<VisEquipment, GameObject>("m_helmetItemInstance").Invoke(__instance);
+			var helmet = __instance.GetField<VisEquipment, GameObject>("m_helmetItemInstance");
 			if (helmet != null) SetVisible(helmet, false);
 		}
 
@@ -122,7 +112,7 @@ namespace ValheimVRM
 			ragAnim.keepAnimatorControllerStateOnDisable = true;
 			ragAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-			var orgAnim = AccessTools.FieldRefAccess<Player, Animator>((Player)__instance, "m_animator");
+			var orgAnim = ((Player)__instance).GetField<Player, Animator>("m_animator");
 			ragAnim.avatar = orgAnim.avatar;
 
 			if (VRMModels.PlayerToVrmDic.TryGetValue((Player)__instance, out var vrm))
@@ -143,7 +133,7 @@ namespace ValheimVRM
 			if (VRMModels.PlayerToNameDic.ContainsKey(__instance)) name = VRMModels.PlayerToNameDic[__instance];
 			if (name != null && Settings.ReadBool(name, "FixCameraHeight", true))
 			{
-				GameObject.Destroy(__instance.GetComponent<EyeSync>());
+				GameObject.Destroy(__instance.GetComponent<VRMEyePositionSync>());
 			}
 		}
 	}
@@ -156,8 +146,19 @@ namespace ValheimVRM
 		[HarmonyPostfix]
 		static void Postfix(Player __instance)
 		{
-			var playerName = __instance.GetPlayerName();
-			if (playerName == "" || playerName == "...") playerName = Game.instance != null ? Game.instance.GetPlayerProfile().GetName() : null;
+			string playerName = null;
+			if (Game.instance != null)
+			{
+				playerName = __instance.GetPlayerName();
+				if (playerName == "" || playerName == "...") playerName = Game.instance.GetPlayerProfile().GetName();
+			}
+			else
+			{
+				var index = FejdStartup.instance.GetField<FejdStartup, int>("m_profileIndex");
+				var profiles = FejdStartup.instance.GetField<FejdStartup, List<PlayerProfile>>("m_profiles");
+				if (index >= 0 && index < profiles.Count) playerName = profiles[index].GetName();
+			}
+
 			if (!string.IsNullOrEmpty(playerName) && !vrmDic.ContainsKey(playerName))
 			{
 				var path = Environment.CurrentDirectory + $"/ValheimVRM/{playerName}.vrm";
@@ -214,66 +215,77 @@ namespace ValheimVRM
 
 						// シェーダ差し替え
 						var brightness = Settings.ReadFloat(playerName, "ModelBrightness", 0.8f);
+						var materials = new List<Material>();
+						foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+						{
+							foreach (var mat in smr.materials)
+							{
+								if (!materials.Contains(mat)) materials.Add(mat);
+							}
+						}
+						foreach (var mr in orgVrm.GetComponentsInChildren<MeshRenderer>())
+						{
+							foreach (var mat in mr.materials)
+							{
+								if (!materials.Contains(mat)) materials.Add(mat);
+							}
+						}
+
 						if (Settings.ReadBool(playerName, "UseMToonShader", false))
 						{
-							foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+							foreach (var mat in materials)
 							{
-								foreach (var mat in smr.materials)
+								if (mat.HasProperty("_Color"))
 								{
-									if (mat.HasProperty("_Color"))
-									{
-										var color = mat.GetColor("_Color");
-										color.r *= brightness;
-										color.g *= brightness;
-										color.b *= brightness;
-										mat.SetColor("_Color", color);
-									}
+									var color = mat.GetColor("_Color");
+									color.r *= brightness;
+									color.g *= brightness;
+									color.b *= brightness;
+									mat.SetColor("_Color", color);
 								}
 							}
 						}
 						else
 						{
 							var shader = Shader.Find("Custom/Player");
-							foreach (var smr in orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>())
+							foreach (var mat in materials)
 							{
-								foreach (var mat in smr.materials)
+								if (mat.shader == shader) continue;
+
+								var color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
+
+								var mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") as Texture2D : null;
+								Texture2D tex = mainTex;
+								if (mainTex != null)
 								{
-									if (mat.shader == shader) continue;
-
-									var color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white;
-
-									var mainTex = mat.HasProperty("_MainTex") ? mat.GetTexture("_MainTex") as Texture2D : null;
-									Texture2D tex = mainTex;
-									if (mainTex != null)
+									tex = new Texture2D(mainTex.width, mainTex.height);
+									var colors = mainTex.GetPixels();
+									for (var i = 0; i < colors.Length; i++)
 									{
-										tex = new Texture2D(mainTex.width, mainTex.height);
-										var colors = mainTex.GetPixels();
-										for (var i = 0; i < colors.Length; i++)
-										{
-											var col = colors[i] * color;
-											float h, s, v;
-											Color.RGBToHSV(col, out h, out s, out v);
-											v *= brightness;
-											colors[i] = Color.HSVToRGB(h, s, v);
-											colors[i].a = col.a;
-										}
-										tex.SetPixels(colors);
-										tex.Apply();
+										var col = colors[i] * color;
+										float h, s, v;
+										Color.RGBToHSV(col, out h, out s, out v);
+										v *= brightness;
+										colors[i] = Color.HSVToRGB(h, s, v);
+										colors[i].a = col.a;
 									}
-
-									var bumpMap = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
-									mat.shader = shader;
-
-									mat.SetTexture("_MainTex", tex);
-									mat.SetTexture("_SkinBumpMap", bumpMap);
-									mat.SetColor("_SkinColor", color);
-									mat.SetTexture("_ChestTex", tex);
-									mat.SetTexture("_ChestBumpMap", bumpMap);
-									mat.SetTexture("_LegsTex", tex);
-									mat.SetTexture("_LegsBumpMap", bumpMap);
-									mat.SetFloat("_Glossiness", 0.2f);
-									mat.SetFloat("_MetalGlossiness", 0.0f);
+									tex.SetPixels(colors);
+									tex.Apply();
 								}
+
+								var bumpMap = mat.HasProperty("_BumpMap") ? mat.GetTexture("_BumpMap") : null;
+								mat.shader = shader;
+
+								mat.SetTexture("_MainTex", tex);
+								mat.SetTexture("_SkinBumpMap", bumpMap);
+								mat.SetColor("_SkinColor", color);
+								mat.SetTexture("_ChestTex", tex);
+								mat.SetTexture("_ChestBumpMap", bumpMap);
+								mat.SetTexture("_LegsTex", tex);
+								mat.SetTexture("_LegsBumpMap", bumpMap);
+								mat.SetFloat("_Glossiness", 0.2f);
+								mat.SetFloat("_MetalGlossiness", 0.0f);
+								
 							}
 						}
 						
@@ -323,8 +335,8 @@ namespace ValheimVRM
 				if (Settings.ReadBool(playerName, "FixCameraHeight", true))
 				{
 					var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
-					if (__instance.gameObject.GetComponent<EyeSync>() == null) __instance.gameObject.AddComponent<EyeSync>().Setup(vrmEye);
-					else __instance.gameObject.GetComponent<EyeSync>().Setup(vrmEye);
+					if (__instance.gameObject.GetComponent<VRMEyePositionSync>() == null) __instance.gameObject.AddComponent<VRMEyePositionSync>().Setup(vrmEye);
+					else __instance.gameObject.GetComponent<VRMEyePositionSync>().Setup(vrmEye);
 				}
 
 				// MToonの場合環境光の影響をカラーに反映する
@@ -421,186 +433,6 @@ namespace ValheimVRM
 			}
 
 			return null;
-		}
-	}
-
-	[DefaultExecutionOrder(int.MaxValue)]
-	public class VRMAnimationSync : MonoBehaviour
-	{
-		private Animator orgAnim, vrmAnim;
-		private HumanPoseHandler orgPose, vrmPose;
-		private HumanPose hp = new HumanPose();
-		private float height = 0.0f;
-		private bool ragdoll;
-		private float offset;
-
-		public void Setup(Animator orgAnim, bool isRagdoll = false, float offset = 0.0f)
-		{
-			this.ragdoll = isRagdoll;
-			this.offset = offset;
-			this.orgAnim = orgAnim;
-			this.vrmAnim = GetComponent<Animator>();
-			this.vrmAnim.applyRootMotion = true;
-			this.vrmAnim.updateMode = orgAnim.updateMode;
-			this.vrmAnim.feetPivotActive = orgAnim.feetPivotActive;
-			this.vrmAnim.layersAffectMassCenter = orgAnim.layersAffectMassCenter;
-			this.vrmAnim.stabilizeFeet = orgAnim.stabilizeFeet;
-
-			PoseHandlerCreate(orgAnim, vrmAnim);
-		}
-
-		void PoseHandlerCreate(Animator org, Animator vrm)
-		{
-			OnDestroy();
-			orgPose = new HumanPoseHandler(org.avatar, org.transform);
-			vrmPose = new HumanPoseHandler(vrm.avatar, vrm.transform);
-
-			height = vrmAnim.GetBoneTransform(HumanBodyBones.Hips).position.y - orgAnim.GetBoneTransform(HumanBodyBones.Hips).position.y;
-		}
-
-		void OnDestroy()
-		{
-			if (orgPose != null)
-				orgPose.Dispose();
-			if (vrmPose != null)
-				vrmPose.Dispose();
-		}
-
-		void Update()
-		{
-			if (ragdoll) return;
-			for (var i = 0; i < 55; i++)
-			{
-				var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
-				var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
-
-				if (i > 0 && orgTrans != null && vrmTrans != null)
-				{
-					orgTrans.position = vrmTrans.position;
-				}
-			}
-		}
-
-		void LateUpdate()
-		{
-			orgPose.GetHumanPose(ref hp);
-			vrmPose.SetHumanPose(ref hp);
-
-			var posY = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position.y;
-
-			if (!ragdoll)
-			{
-				for (var i = 0; i < 55; i++)
-				{
-					var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
-					var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
-
-					if (i > 0 && orgTrans != null && vrmTrans != null)
-					{
-						orgTrans.position = vrmTrans.position;
-					}
-				}
-			}
-
-			var pos = vrmAnim.transform.position;
-			pos.y = posY + height + offset;
-			vrmAnim.transform.position = pos;
-		}
-	}
-
-	public class EyeSync : MonoBehaviour
-	{
-		private Transform vrmEye;
-		private Transform orgEye;
-
-		public void Setup(Transform vrmEye)
-		{
-			this.vrmEye = vrmEye;
-			this.orgEye = GetComponent<Player>().m_eye;
-		}
-
-		void Update()
-		{
-			var pos = this.orgEye.position;
-			pos.y = this.vrmEye.position.y;
-			this.orgEye.position = pos;
-		}
-	}
-
-	public class MToonColorSync : MonoBehaviour
-	{
-		class MatColor
-		{
-			public Material mat;
-			public Color color;
-			public Color shadeColor;
-			public Color emission;
-			public bool hasColor;
-			public bool hasShadeColor;
-			public bool hasEmission;
-		}
-
-		//private int _SunFogColor;
-		private int _SunColor;
-		private int _AmbientColor;
-
-		private List<MatColor> matColors = new List<MatColor>();
-
-		void Awake()
-		{
-			//_SunFogColor = Shader.PropertyToID("_SunFogColor");
-			_SunColor = Shader.PropertyToID("_SunColor");
-			_AmbientColor = Shader.PropertyToID("_AmbientColor");
-		}
-
-		public void Setup(GameObject vrm)
-		{
-			matColors.Clear();
-			foreach (var smr in vrm.GetComponentsInChildren<SkinnedMeshRenderer>())
-			{
-				foreach (var mat in smr.materials)
-				{
-					if (!matColors.Exists(m => m.mat == mat))
-					{
-						matColors.Add(new MatColor()
-						{
-							mat = mat,
-							color = mat.HasProperty("_Color") ? mat.GetColor("_Color") : Color.white,
-							shadeColor = mat.HasProperty("_ShadeColor") ? mat.GetColor("_ShadeColor") : Color.white,
-							emission = mat.HasProperty("_EmissionColor") ? mat.GetColor("_EmissionColor") : Color.black,
-							hasColor = mat.HasProperty("_Color"),
-							hasShadeColor = mat.HasProperty("_ShadeColor"),
-							hasEmission = mat.HasProperty("_EmissionColor"),
-						});
-					}
-				}
-			}
-		}
-
-		void Update()
-		{
-			//var fog = Shader.GetGlobalColor(_SunFogColor);
-			var sun = Shader.GetGlobalColor(_SunColor);
-			var amb = Shader.GetGlobalColor(_AmbientColor);
-			var sunAmb = sun + amb;
-			if (sunAmb.maxColorComponent > 0.7f) sunAmb /= 0.3f + sunAmb.maxColorComponent;
-
-			foreach (var matColor in matColors)
-			{
-				var col = matColor.color * sunAmb;
-				col.a = matColor.color.a;
-				if (col.maxColorComponent > 1.0f) col /= col.maxColorComponent;
-
-				var shadeCol = matColor.shadeColor * sunAmb;
-				shadeCol.a = matColor.shadeColor.a;
-				if (shadeCol.maxColorComponent > 1.0f) shadeCol /= shadeCol.maxColorComponent;
-
-				var emi = matColor.emission * sunAmb.grayscale;
-
-				if (matColor.hasColor) matColor.mat.SetColor("_Color", col);
-				if (matColor.hasShadeColor) matColor.mat.SetColor("_ShadeColor", shadeCol);
-				if (matColor.hasEmission) matColor.mat.SetColor("_EmissionColor", emi);
-			}
 		}
 	}
 }
