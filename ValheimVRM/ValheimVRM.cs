@@ -123,6 +123,29 @@ namespace ValheimVRM
 		}
 	}
 
+	[HarmonyPatch(typeof(Character), "SetVisible")]
+	static class Patch_Character_SetVisible
+	{
+		[HarmonyPostfix]
+		static void Postfix(Character __instance, bool visible)
+		{
+			if (!__instance.IsPlayer()) return;
+
+			if (VRMModels.PlayerToVrmDic.TryGetValue((Player)__instance, out var vrm))
+			{
+				var lodGroup = vrm.GetComponent<LODGroup>();
+				if (visible)
+				{
+					lodGroup.localReferencePoint = __instance.GetField<Character, Vector3>("m_originalLocalRef");
+				}
+				else
+				{
+					lodGroup.localReferencePoint = new Vector3(999999f, 999999f, 999999f);
+				}
+			}
+		}
+	}
+
 	[HarmonyPatch(typeof(Player), "OnDeath")]
 	static class Patch_Player_OnDeath
 	{
@@ -288,20 +311,29 @@ namespace ValheimVRM
 								
 							}
 						}
-						
+
+						var lodGroup = orgVrm.AddComponent<LODGroup>();
+						var lod = new LOD(0.1f, orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>());
+						lodGroup.SetLODs(new LOD[]{ lod });
+						lodGroup.RecalculateBounds();
+
+						var orgLodGroup = __instance.GetComponentInChildren<LODGroup>();
+						lodGroup.fadeMode = orgLodGroup.fadeMode;
+						lodGroup.animateCrossFading = orgLodGroup.animateCrossFading;
+
 						orgVrm.SetActive(false);
 
 						// VRMデータの共有設定
-						if (Settings.ReadBool(playerName, "AllowVRMShare", false))
-						{
-							//ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
-							//if (m_nview.GetZDO() != null && VRMModels.VrmBufDic.ContainsKey(playerName))
-							//{
-							//	Debug.LogError("VRMデータをセット");
-							//	m_nview.GetZDO().Set("vrmData", VRMModels.VrmBufDic[playerName]);
-							//	m_nview.GetZDO().Set("vrmSettings", string.Join("\n", Settings.GetSettings(playerName)));
-							//}
-						}
+						//if (Settings.ReadBool(playerName, "AllowVRMShare", false))
+						//{
+						//	//ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
+						//	//if (m_nview.GetZDO() != null && VRMModels.VrmBufDic.ContainsKey(playerName))
+						//	//{
+						//	//	Debug.LogError("VRMデータをセット");
+						//	//	m_nview.GetZDO().Set("vrmData", VRMModels.VrmBufDic[playerName]);
+						//	//	m_nview.GetZDO().Set("vrmSettings", string.Join("\n", Settings.GetSettings(playerName)));
+						//	//}
+						//}
 					}
 				}
 			}
@@ -335,8 +367,13 @@ namespace ValheimVRM
 				if (Settings.ReadBool(playerName, "FixCameraHeight", true))
 				{
 					var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
-					if (__instance.gameObject.GetComponent<VRMEyePositionSync>() == null) __instance.gameObject.AddComponent<VRMEyePositionSync>().Setup(vrmEye);
-					else __instance.gameObject.GetComponent<VRMEyePositionSync>().Setup(vrmEye);
+					if (vrmEye == null) vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
+					if (vrmEye == null) vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Neck);
+					if (vrmEye != null)
+					{
+						if (__instance.gameObject.GetComponent<VRMEyePositionSync>() == null) __instance.gameObject.AddComponent<VRMEyePositionSync>().Setup(vrmEye);
+						else __instance.gameObject.GetComponent<VRMEyePositionSync>().Setup(vrmEye);
+					}
 				}
 
 				// MToonの場合環境光の影響をカラーに反映する

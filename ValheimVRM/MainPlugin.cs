@@ -10,7 +10,7 @@ namespace ValheimVRM
     {
         public const string PluginGuid = "com.yoship1639.plugins.valheimvrm";
         public const string PluginName = "ValheimVRM";
-        public const string PluginVersion = "1.0.8.0";
+        public const string PluginVersion = "1.0.9.0";
 
         void Awake()
         {
