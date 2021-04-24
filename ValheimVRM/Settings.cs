@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace ValheimVRM
@@ -109,6 +110,30 @@ namespace ValheimVRM
                 return res;
             }
             return defaultValue;
+        }
+
+        public static Vector3 ReadVector3(string playername, string key, Vector3 defaultValue = default, bool debugLog = true)
+        {
+            var str = ReadSettings(playername, key);
+            if (str == null) return defaultValue;
+            var match = new Regex("\\((?<x>[^,]*?),(?<y>[^,]*?),(?<z>[^,]*?)\\)").Match(str);
+            if (match.Success == false) return defaultValue;
+            try
+            {
+                var res = new Vector3()
+                {
+                    x = float.Parse(match.Groups["x"].Value),
+                    y = float.Parse(match.Groups["y"].Value),
+                    z = float.Parse(match.Groups["z"].Value)
+                };
+                if (debugLog) Debug.Log("[ValheimVRM] " + key + ": " + res);
+                return res;
+            }
+            catch (FormatException ex)
+            {
+                Debug.LogError(ex);
+                return defaultValue;
+            }
         }
     }
 }

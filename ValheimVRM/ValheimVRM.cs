@@ -54,6 +54,40 @@ namespace ValheimVRM
 		public static Dictionary<Player, string> PlayerToNameDic = new Dictionary<Player, string>();
 	}
 
+	[HarmonyPatch(typeof(VisEquipment), "SetRightHandEquiped")]
+	static class Patch_VisEquipment_SetRightHandEquiped
+	{
+		[HarmonyPostfix]
+		static void Postfix(VisEquipment __instance)
+		{
+			if (!__instance.m_isPlayer) return;
+
+			var player = __instance.GetComponent<Player>();
+			if (player == null || !VRMModels.PlayerToVrmDic.ContainsKey(player)) return;
+
+			var name = VRMModels.PlayerToNameDic[player];
+			var rightItem = __instance.GetField<VisEquipment, GameObject>("m_rightItemInstance");
+			rightItem.transform.localPosition = Settings.ReadVector3(name, "RightHandEuqipPos", Vector3.zero);
+		}
+	}
+
+	[HarmonyPatch(typeof(VisEquipment), "SetLeftHandEquiped")]
+	static class Patch_VisEquipment_SetLeftHandEquiped
+	{
+		[HarmonyPostfix]
+		static void Postfix(VisEquipment __instance)
+		{
+			if (!__instance.m_isPlayer) return;
+
+			var player = __instance.GetComponent<Player>();
+			if (player == null || !VRMModels.PlayerToVrmDic.ContainsKey(player)) return;
+
+			var name = VRMModels.PlayerToNameDic[player];
+			var leftItem = __instance.GetField<VisEquipment, GameObject>("m_leftItemInstance");
+			leftItem.transform.localPosition = Settings.ReadVector3(name, "LeftHandEuqipPos", Vector3.zero);
+		}
+	}
+
 	[HarmonyPatch(typeof(VisEquipment), "UpdateLodgroup")]
 	static class Patch_VisEquipment_UpdateLodgroup
 	{
