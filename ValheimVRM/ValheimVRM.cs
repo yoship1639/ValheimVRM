@@ -67,7 +67,7 @@ namespace ValheimVRM
 
 			var name = VRMModels.PlayerToNameDic[player];
 			var rightItem = __instance.GetField<VisEquipment, GameObject>("m_rightItemInstance");
-			rightItem.transform.localPosition = Settings.ReadVector3(name, "RightHandEuqipPos", Vector3.zero);
+			if (rightItem != null) rightItem.transform.localPosition = Settings.ReadVector3(name, "RightHandEuqipPos", Vector3.zero, false);
 		}
 	}
 
@@ -84,7 +84,7 @@ namespace ValheimVRM
 
 			var name = VRMModels.PlayerToNameDic[player];
 			var leftItem = __instance.GetField<VisEquipment, GameObject>("m_leftItemInstance");
-			leftItem.transform.localPosition = Settings.ReadVector3(name, "LeftHandEuqipPos", Vector3.zero);
+			if (leftItem != null) leftItem.transform.localPosition = Settings.ReadVector3(name, "LeftHandEuqipPos", Vector3.zero, false);
 		}
 	}
 
