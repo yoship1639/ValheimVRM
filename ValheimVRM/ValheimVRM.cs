@@ -170,6 +170,31 @@ namespace ValheimVRM
 		}
 	}
 
+	[HarmonyPatch(typeof(Character), "GetHeadPoint")]
+	static class Patch_Character_GetHeadPoint
+	{
+		[HarmonyPostfix]
+		static bool Prefix(Character __instance, ref Vector3 __result)
+		{
+			var player = __instance as Player;
+			if (player == null) return true;
+
+			if (VRMModels.PlayerToVrmDic.TryGetValue(player, out var vrm))
+			{
+				var animator = vrm.GetComponentInChildren<Animator>();
+				if (animator == null) return true;
+
+				var head = animator.GetBoneTransform(HumanBodyBones.Head);
+				if (head == null) return true;
+
+				__result = head.position;
+				return false;
+			}
+			
+			return true;
+		}
+	}
+
 	[HarmonyPatch(typeof(Player), "Awake")]
 	static class Patch_Player_Awake
 	{
