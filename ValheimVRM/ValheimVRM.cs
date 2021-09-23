@@ -416,6 +416,16 @@ namespace ValheimVRM
 					if (vrmModel.GetComponent<MToonColorSync>() == null) vrmModel.AddComponent<MToonColorSync>().Setup(vrmModel);
 					else vrmModel.GetComponent<MToonColorSync>().Setup(vrmModel);
 				}
+
+				// SpringBone設定
+				var stiffness = Settings.ReadFloat(playerName, "SpringBoneStiffness", 1.0f);
+				var gravity = Settings.ReadFloat(playerName, "SpringBoneGravityPower", 1.0f);
+				foreach (var springBone in vrmModel.GetComponentsInChildren<VRM.VRMSpringBone>())
+				{
+					springBone.m_stiffnessForce *= stiffness;
+					springBone.m_gravityPower *= gravity;
+					springBone.m_center = null;
+				}
 			}
 		}
 
