@@ -348,7 +348,7 @@ namespace ValheimVRM
 
 						var lodGroup = orgVrm.AddComponent<LODGroup>();
 						var lod = new LOD(0.1f, orgVrm.GetComponentsInChildren<SkinnedMeshRenderer>());
-						lodGroup.SetLODs(new LOD[]{ lod });
+						if (Settings.ReadBool(playerName, "EnablePlayerFade", true)) lodGroup.SetLODs(new LOD[] { lod });
 						lodGroup.RecalculateBounds();
 
 						var orgLodGroup = __instance.GetComponentInChildren<LODGroup>();
@@ -424,6 +424,7 @@ namespace ValheimVRM
 				{
 					springBone.m_stiffnessForce *= stiffness;
 					springBone.m_gravityPower *= gravity;
+					springBone.m_updateType = VRMSpringBone.SpringBoneUpdateType.FixedUpdate;
 					springBone.m_center = null;
 				}
 			}
