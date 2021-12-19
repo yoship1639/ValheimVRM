@@ -8,49 +8,49 @@
 
   <ItemGroup>
     <Reference Include="0Harmony">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\BepInEx\core\0Harmony.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\BepInEx\core\0Harmony.dll</HintPath>
     </Reference>
     <Reference Include="assembly_valheim">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\assembly_valheim.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\assembly_valheim.dll</HintPath>
     </Reference>
     <Reference Include="BepInEx">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\BepInEx\core\BepInEx.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
     <Reference Include="MeshUtility">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\MeshUtility.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\MeshUtility.dll</HintPath>
     </Reference>
     <Reference Include="MToon">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\MToon.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\MToon.dll</HintPath>
     </Reference>
     <Reference Include="ShaderProperty.Runtime">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\ShaderProperty.Runtime.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\ShaderProperty.Runtime.dll</HintPath>
     </Reference>
     <Reference Include="UniGLTF">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\UniGLTF.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniGLTF.dll</HintPath>
     </Reference>
     <Reference Include="UniHumanoid">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\UniHumanoid.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniHumanoid.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AnimationModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AssetBundleModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.CoreModule.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.UI">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UI.dll</HintPath>
     </Reference>
     <Reference Include="UniUnlit">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\UniUnlit.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniUnlit.dll</HintPath>
     </Reference>
     <Reference Include="VRM">
-      <HintPath>D:\games\steam\steamapps\common\Valheim\valheim_Data\Managed\VRM.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRM.dll</HintPath>
     </Reference>
   </ItemGroup>
 
