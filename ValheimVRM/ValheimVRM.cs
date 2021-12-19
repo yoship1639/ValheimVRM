@@ -93,6 +93,13 @@ namespace ValheimVRM
 
 			var rightItem = __instance.GetField<VisEquipment, GameObject>("m_rightItemInstance");
 			if (rightItem != null) rightItem.transform.localPosition = Settings.ReadVector3(name, "RightHandEuqipPos", Vector3.zero);
+			
+			// divided  by 100 to keep the settings file positions in the same number range. (position offset appears to be on the world, not local)
+			var rightBackItem = __instance.GetField<VisEquipment, GameObject>("m_rightBackItemInstance");
+			if (rightBackItem != null) rightBackItem.transform.localPosition = Settings.ReadVector3(name, "RightHandBackItemPos", Vector3.zero) / 100.0f;
+			
+			var leftBackItem = __instance.GetField<VisEquipment, GameObject>("m_leftBackItemInstance");
+			if (leftBackItem != null) leftBackItem.transform.localPosition = Settings.ReadVector3(name, "LeftHandBackItemPos", Vector3.zero) / 100.0f;
 		}
 
 		private static void SetVisible(GameObject obj, bool flag)
