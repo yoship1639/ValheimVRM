@@ -9,9 +9,9 @@ namespace ValheimVRM
 {
 	static class Settings
 	{
-		public static readonly string ValheimVRMDir = Environment.CurrentDirectory + @"\ValheimVRM";
+		public static string ValheimVRMDir => Path.Combine(Environment.CurrentDirectory, "ValheimVRM");
 
-		public static string PlayerSettingsPath(string playerName) => ValheimVRMDir + $"/settings_{playerName}.txt";
+		public static string PlayerSettingsPath(string playerName) => Path.Combine(ValheimVRMDir, $"settings_{playerName}.txt");
         private static Dictionary<string, string[]> playerSettings = new Dictionary<string, string[]>();
 
         public static void AddSettings(string playerName, string[] settings)

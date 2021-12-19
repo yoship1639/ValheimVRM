@@ -84,6 +84,22 @@ namespace ValheimVRM
 			-496559199,
 		};
 
+		void Update()
+		{
+			if (!ragdoll)
+			{
+				for (var i = 0; i < 55; i++)
+				{
+					var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
+					var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
+
+					if (i > 0 && orgTrans != null && vrmTrans != null)
+					{
+						orgTrans.position = vrmTrans.position;
+					}
+				}
+			}
+		}
 
 		void LateUpdate()
 		{
