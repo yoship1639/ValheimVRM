@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -27,7 +27,7 @@ namespace ValheimVRM
 			this.vrmAnim.feetPivotActive = orgAnim.feetPivotActive;
 			this.vrmAnim.layersAffectMassCenter = orgAnim.layersAffectMassCenter;
 			this.vrmAnim.stabilizeFeet = orgAnim.stabilizeFeet;
-
+			
 			PoseHandlerCreate(orgAnim, vrmAnim);
 		}
 
@@ -86,6 +86,7 @@ namespace ValheimVRM
 
 		void Update()
 		{
+			vrmAnim.transform.localPosition = Vector3.zero;
 			if (!ragdoll)
 			{
 				for (var i = 0; i < 55; i++)
@@ -95,15 +96,22 @@ namespace ValheimVRM
 
 					if (i > 0 && orgTrans != null && vrmTrans != null)
 					{
-						orgTrans.position = vrmTrans.position;
+						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
+							orgTrans.position = vrmTrans.position;
+						} else {
+							orgTrans.position = vrmTrans.position + Vector3.up * offset;
+						}
 					}
 				}
 			}
+
+			vrmAnim.transform.localPosition += Vector3.up * offset;
 		}
 
 		void LateUpdate()
 		{
 			vrmAnim.transform.localPosition = Vector3.zero;
+			
 			var orgHipPos = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position;
 			orgPose.GetHumanPose(ref hp);
 			vrmPose.SetHumanPose(ref hp);
@@ -137,7 +145,7 @@ namespace ValheimVRM
 			var pos = vrmHip.position;
 			pos.y += adjustHeight;
 			vrmHip.position = pos;
-
+			
 			if (!ragdoll)
 			{
 				for (var i = 0; i < 55; i++)
@@ -147,10 +155,14 @@ namespace ValheimVRM
 
 					if (i > 0 && orgTrans != null && vrmTrans != null)
 					{
-						orgTrans.position = vrmTrans.position;
+						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
+							orgTrans.position = vrmTrans.position;
+						} else {
+							orgTrans.position = vrmTrans.position + Vector3.up * offset;
+						}
 					}
 				}
-			}
+			} 
 
 			vrmAnim.transform.localPosition += Vector3.up * offset;
 		}
