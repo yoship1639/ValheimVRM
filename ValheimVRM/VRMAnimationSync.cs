@@ -15,6 +15,7 @@ namespace ValheimVRM
 		private HumanPose hp = new HumanPose();
 		private bool ragdoll;
 		private float offset;
+		private float prevHipPos = -10000f;
 
 		public void Setup(Animator orgAnim, bool isRagdoll = false, float offset = 0.0f)
 		{
@@ -56,7 +57,7 @@ namespace ValheimVRM
 			var vrmLeftFoot = vrmAnim.GetBoneTransform(HumanBodyBones.LeftFoot).position;
 			var vrmArgFoot = (vrmRightFoot + vrmLeftFoot) * 0.5f;
 
-			return (orgArgFoot - vrmArgFoot).y;
+			return (orgArgFoot.y - offset - vrmArgFoot.y);
 		}
 
 		private static List<int> alreadyHashes = new List<int>();
@@ -86,26 +87,7 @@ namespace ValheimVRM
 
 		void Update()
 		{
-			vrmAnim.transform.localPosition = Vector3.zero;
-			if (!ragdoll)
-			{
-				for (var i = 0; i < 55; i++)
-				{
-					var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
-					var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
-
-					if (i > 0 && orgTrans != null && vrmTrans != null)
-					{
-						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
-							orgTrans.position = vrmTrans.position;
-						} else {
-							orgTrans.position = vrmTrans.position + Vector3.up * offset;
-						}
-					}
-				}
-			}
-
-			vrmAnim.transform.localPosition += Vector3.up * offset;
+			LateUpdate();
 		}
 
 		void LateUpdate()
@@ -145,6 +127,8 @@ namespace ValheimVRM
 			var pos = vrmHip.position;
 			pos.y += adjustHeight;
 			vrmHip.position = pos;
+
+			vrmAnim.transform.localPosition += Vector3.up * offset;
 			
 			if (!ragdoll)
 			{
@@ -155,16 +139,10 @@ namespace ValheimVRM
 
 					if (i > 0 && orgTrans != null && vrmTrans != null)
 					{
-						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
-							orgTrans.position = vrmTrans.position;
-						} else {
-							orgTrans.position = vrmTrans.position + Vector3.up * offset;
-						}
+						orgTrans.position = vrmTrans.position;
 					}
 				}
 			} 
-
-			vrmAnim.transform.localPosition += Vector3.up * offset;
 		}
 	}
 }
