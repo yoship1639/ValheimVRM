@@ -225,7 +225,7 @@ namespace ValheimVRM
 
 			if (!string.IsNullOrEmpty(playerName) && !vrmDic.ContainsKey(playerName))
 			{
-				var path = Environment.CurrentDirectory + $"/ValheimVRM/{playerName}.vrm";
+				var path = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", $"{playerName}.vrm");
 
 				ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
 				byte[] vrmData = null;
