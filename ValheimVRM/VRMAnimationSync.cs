@@ -15,7 +15,6 @@ namespace ValheimVRM
 		private HumanPose hp = new HumanPose();
 		private bool ragdoll;
 		private float offset;
-		private float prevHipPos = -10000f;
 
 		public void Setup(Animator orgAnim, bool isRagdoll = false, float offset = 0.0f)
 		{
