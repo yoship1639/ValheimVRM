@@ -1,0 +1,5 @@
+// Should we reload character settings every time character appears in menu or do that only upon game restart
+ReloadInMenu=false
+
+// True if you want  to load your VRMs for other players before their own will be dowloaded
+AllowLocalVRMsForOtherPlayers=true

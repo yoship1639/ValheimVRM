@@ -1,4 +1,5 @@
-﻿using BepInEx;
+﻿using System.Globalization;
+using BepInEx;
 using HarmonyLib;
 using System.Reflection;
 
@@ -10,10 +11,16 @@ namespace ValheimVRM
     {
         public const string PluginGuid = "com.yoship1639.plugins.valheimvrm";
         public const string PluginName = "ValheimVRM";
-        public const string PluginVersion = "1.1.2.0";
+        public const string PluginVersion = "1.1.3.0";
 
         void Awake()
         {
+            // avoid float parsing error on computers with different cultures
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            
+            // we have some global settings to load
+            Settings.ReloadGlobalSettings();
+            
             // Harmonyパッチ作成
             var harmony = new Harmony("com.yoship1639.plugins.valheimvrm.patch");
 
