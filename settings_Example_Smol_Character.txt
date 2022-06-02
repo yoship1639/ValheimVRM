@@ -1,0 +1,123 @@
+//--- Player size settings ---//
+
+// VRM model scale
+ModelScale=1
+
+// Y-coordinate offset of the model
+ModelOffsetY=0
+
+// Player collider height
+PlayerHeight=0.9
+
+// Player collider radius
+PlayerRadius=0.15
+
+// Nice for smol characters, so they could sit on the edge and do not clip in chairs
+SittingOnChairOffset=(0, 0.05, 0.18)
+
+// Offset when sitting on throne
+SittingOnThroneOffset=(0, -0.05, 0.18)
+
+// Offset when sitting in a ship
+SittingOnShipOffset=(0, 0.1, 0.18)
+
+// Offset when holding the mast
+HoldingMastOffset=(-0.5, 0, -0.1)
+
+// Offset when standing on a ship front
+HoldingDragonOffset=(-0.2, 0.1, 0.2)
+
+// Use this to offset yourself when you're sitting on the ground
+SittingIdleOffset=(0, 0.1, 0)
+
+// Use that if your smol character stuck in air while sleeping
+SleepingOffset=(0, 0, -0.1)
+
+
+
+//--- Equipment transformation ---//
+
+// Offset of the equipment position of the right hand
+RightHandEquipPos=(-0.05, 0.01, 0)
+
+// Offset of the equipment position of the left hand
+LeftHandEquipPos=(-0.05, 0.01, 0)
+
+// Offset of back item position of the right hand. (+Y is forward, +Z is down, +X is right)
+RightHandBackItemPos=(0, 0.11, 0)
+
+// Offset of back item position of the left hand. (+Y is forward, +Z is down, +X is right)
+LeftHandBackItemPos=(0, 0.11, 0)
+
+
+
+//--- Misc ---//
+
+// VRM model brightness
+ModelBrightness=0.8
+
+// Adjust the camera position to the height of the VRM model
+FixCameraHeight=true
+
+// Use the MToon shader
+// If you want to use it, set "SSAO" to Off in the graphics settings
+UseMToonShader=false
+
+// Make the player fade out when the camera gets close
+// It is recommended to disable it on smol characters
+EnablePlayerFade=false
+
+// Can we send this vrm to other players
+AllowShare=true
+
+
+
+//--- SpringBone settings ---//
+
+// Stiffness scale of SpringBone
+SpringBoneStiffness=1.0
+
+// Gravity strength scale of SpringBone
+SpringBoneGravityPower=1.0
+
+
+
+//--- Scaling ---//
+
+// Scale for the equipment in hands
+EquipmentScale=0.75
+
+// Scale for the interaction and build distance
+InteractionDistanceScale=1.0
+
+// Scale for attack distance
+AttackDistanceScale=0.75
+
+// Scale for melee attacks damage
+MeleeDamageScale=0.75
+
+// Scale for ranged attacks damage
+RangedDamageScale=1.0
+
+// Depth on which your character starts swiming
+SwimDepthScale=0.4
+
+// Scale for your swim speed
+SwimSpeedScale=0.75
+
+// Scale for max health
+BaseHealthScale=0.5
+FoodHealthScale=1.5
+
+// Scale for max stamina
+BaseStaminaScale=1.0
+FoodStaminaScale=1.5
+
+// Scale for weight limit
+WeightLimitScale=0.75
+
+// Scale for movement speed
+MovementSpeedScale=0.75
+
+// Scale for jump force
+JumpForceScale=0.8

@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using Object = UnityEngine.Object;
 
 namespace ValheimVRM
 {
@@ -14,12 +15,14 @@ namespace ValheimVRM
 		private HumanPoseHandler orgPose, vrmPose;
 		private HumanPose hp = new HumanPose();
 		private bool ragdoll;
-		private float offset;
+		private Settings.VrmSettingsContainer settings;
+		private Vector3? adjustPos;
+		private int stateHash;
 
-		public void Setup(Animator orgAnim, bool isRagdoll = false, float offset = 0.0f)
+		public void Setup(Animator orgAnim, Settings.VrmSettingsContainer settings, bool isRagdoll = false)
 		{
 			this.ragdoll = isRagdoll;
-			this.offset = offset;
+			this.settings = settings;
 			this.orgAnim = orgAnim;
 			this.vrmAnim = GetComponent<Animator>();
 			this.vrmAnim.applyRootMotion = true;
@@ -46,42 +49,31 @@ namespace ValheimVRM
 				vrmPose.Dispose();
 		}
 
-		private float CalcFootSub()
-		{
-			var orgRightFoot = orgAnim.GetBoneTransform(HumanBodyBones.RightFoot).position;
-			var orgLeftFoot = orgAnim.GetBoneTransform(HumanBodyBones.LeftFoot).position;
-			var orgArgFoot = (orgRightFoot + orgLeftFoot) * 0.5f;
+		private static int prevHash = 0;
 
-			var vrmRightFoot = vrmAnim.GetBoneTransform(HumanBodyBones.RightFoot).position;
-			var vrmLeftFoot = vrmAnim.GetBoneTransform(HumanBodyBones.LeftFoot).position;
-			var vrmArgFoot = (vrmRightFoot + vrmLeftFoot) * 0.5f;
-
-			return (orgArgFoot - vrmArgFoot).y;
-		}
-
-		private static List<int> alreadyHashes = new List<int>();
-
-		// 最初: -161139084
-		// 通常: 229373857
-		// 最初立ち上がり: -1536343465
-		// 立ち上がり: -805461806
-		// 座り始め: 890925016
-		// 座り: -1544306596
-		// 椅子: -1829310159
-		// ベッド寝始め: 337039637
-		// ベッド: -1603096
-		// ベッド起き上がり: -496559199
-		// Crouch: -2015693266
+		const int FirstTime         = -161139084;
+		const int Usually           =  229373857;  // standing idle
+		const int FirstRise         = -1536343465; // stand up upon login
+		const int RiseUp            = -805461806;
+		const int StartToSitDown    =  890925016;
+		const int SittingIdle       = -1544306596;
+		const int StandingUpFromSit = -805461806;
+		const int SittingChair      = -1829310159;
+		const int SittingThrone     =  1271596;
+		const int SittingShip       = -675369009;
+		const int StartSleeping     =  337039637;
+		const int Sleeping          = -1603096;
+		const int GetUpFromBed      = -496559199;
+		const int Crouch            = -2015693266;
+		const int HoldingMast       = -2110678410;
+		const int HoldingDragon     = -2076823180; // that thing in a front of longship
 
 		private static List<int> adjustHipHashes = new List<int>()
 		{
-			-1536343465,
-			890925016,
-			-1544306596,
-			-1829310159,
-			337039637,
-			-1603096,
-			-496559199,
+			SittingChair,
+			SittingThrone,
+			SittingShip,
+			Sleeping
 		};
 
 		void Update()
@@ -99,52 +91,92 @@ namespace ValheimVRM
 						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
 							orgTrans.position = vrmTrans.position;
 						} else {
-							orgTrans.position = vrmTrans.position + Vector3.up * offset;
+							orgTrans.position = vrmTrans.position + Vector3.up * settings.ModelOffsetY;
 						}
 					}
 				}
 			}
 
-			vrmAnim.transform.localPosition += Vector3.up * offset;
+			vrmAnim.transform.localPosition += Vector3.up * settings.ModelOffsetY;
 		}
-
+		
 		void LateUpdate()
 		{
+			float playerScaleFactor = settings.PlayerHeight / 1.85f;
+			
 			vrmAnim.transform.localPosition = Vector3.zero;
 			
-			var orgHipPos = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position;
 			orgPose.GetHumanPose(ref hp);
 			vrmPose.SetHumanPose(ref hp);
 
-			var nameHash = orgAnim.GetCurrentAnimatorStateInfo(0).shortNameHash;
-			var adjustFromHip = adjustHipHashes.Contains(nameHash);
+			var newStateHash = orgAnim.GetCurrentAnimatorStateInfo(0).shortNameHash;
+			var adjustFromHips = adjustHipHashes.Contains(newStateHash);
 
-			//if (!alreadyHashes.Contains(nameHash))
+			//if (newStateHash != prevHash)
 			//{
-			//	alreadyHashes.Add(nameHash);
-			//	Debug.Log(orgAnim.GetCurrentAnimatorClipInfo(0)[0].clip.name + ": " + nameHash);
+			//	prevHash = newStateHash;
+			//	Debug.Log(orgAnim.GetCurrentAnimatorClipInfo(0)[0].clip.name + ": " + newStateHash);
 			//}
 
 			var vrmHip = vrmAnim.GetBoneTransform(HumanBodyBones.Hips);
-			if (adjustFromHip)
-			{
-				vrmHip.position = orgHipPos;
-			}
+			var orgHip = orgAnim.GetBoneTransform(HumanBodyBones.Hips);
 			
-			var adjustHeight = 0.0f;
-			if (nameHash == 890925016 || nameHash == -1544306596 || nameHash == -1829310159) // Sitting
+			vrmHip.position = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position;
+
+			var newAdjustPos = new Vector3();
+
+			if (!adjustFromHips)
 			{
-				adjustHeight += 0.1f;
+				// Foot doesn't seem to work as intended on characters with non-standard sizes
+				// It's safer to use provided player height to evaluate the offset
+
+				Vector3 curOrgHipPos = orgHip.position - orgHip.parent.position;
+				Vector3 curVrmHipPos = curOrgHipPos * playerScaleFactor;
+				
+				newAdjustPos = curVrmHipPos - curOrgHipPos;
 			}
 
-			if (!adjustFromHip)
+			float interpSpeed = Time.deltaTime * 5;
+			
+			switch (newStateHash)
 			{
-				adjustHeight = CalcFootSub();
+				case StartToSitDown:
+				case SittingIdle:
+					newAdjustPos += orgHip.transform.rotation * settings.SittingIdleOffset;
+					break;
+				
+				case SittingChair:
+					newAdjustPos += orgHip.transform.rotation * settings.SittingOnChairOffset;
+					break;
+				
+				case SittingThrone:
+					newAdjustPos += orgHip.transform.rotation * settings.SittingOnThroneOffset;
+					break;
+				
+				case SittingShip:
+					newAdjustPos += orgHip.transform.rotation * settings.SittingOnShipOffset;
+					break;
+				
+				case HoldingMast:
+					newAdjustPos += orgHip.transform.rotation * settings.HoldingMastOffset;
+					break;
+				
+				case HoldingDragon:
+					newAdjustPos += orgHip.transform.rotation * settings.HoldingDragonOffset;
+					break;
+				
+				case Sleeping:
+					newAdjustPos += orgHip.transform.rotation * settings.SleepingOffset;
+					break;
+				
+				default:
+					interpSpeed = 1;
+					break;
 			}
 
-			var pos = vrmHip.position;
-			pos.y += adjustHeight;
-			vrmHip.position = pos;
+			adjustPos = adjustPos.HasValue ? Vector3.Lerp(adjustPos.Value, newAdjustPos, interpSpeed) : newAdjustPos;
+			
+			vrmHip.position += adjustPos.Value;
 			
 			if (!ragdoll)
 			{
@@ -152,19 +184,21 @@ namespace ValheimVRM
 				{
 					var orgTrans = orgAnim.GetBoneTransform((HumanBodyBones)i);
 					var vrmTrans = vrmAnim.GetBoneTransform((HumanBodyBones)i);
-
+            
 					if (i > 0 && orgTrans != null && vrmTrans != null)
 					{
 						if ((HumanBodyBones)i == HumanBodyBones.LeftFoot || (HumanBodyBones)i == HumanBodyBones.RightFoot) {
 							orgTrans.position = vrmTrans.position;
 						} else {
-							orgTrans.position = vrmTrans.position + Vector3.up * offset;
+							orgTrans.position = vrmTrans.position + Vector3.up * settings.ModelOffsetY;
 						}
 					}
 				}
-			} 
+			}
 
-			vrmAnim.transform.localPosition += Vector3.up * offset;
+			vrmAnim.transform.localPosition += Vector3.up * settings.ModelOffsetY;
+
+			stateHash = newStateHash;
 		}
 	}
 }
