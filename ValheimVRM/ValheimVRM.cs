@@ -6,7 +6,6 @@ using System.Linq;
 using System.Reflection;
 using UniGLTF;
 using UnityEngine;
-using UnityEngine.UI;
 using VRM;
 
 namespace ValheimVRM
@@ -228,10 +227,7 @@ namespace ValheimVRM
 				var path = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", $"{playerName}.vrm");
 
 				ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
-				byte[] vrmData = null;
-				if (m_nview != null && m_nview.GetZDO() != null) vrmData = m_nview.GetZDO().GetByteArray("vrmData");
-
-				if (vrmData == null && !File.Exists(path))
+				if (!File.Exists(path))
 				{
 					Debug.LogError("[ValheimVRM] VRMファイルが見つかりません.");
 					Debug.LogError("[ValheimVRM] 読み込み予定だったVRMファイルパス: " + path);
@@ -240,23 +236,14 @@ namespace ValheimVRM
 				{
 					if (!Settings.ContainsSettings(playerName))
 					{
-						if (vrmData == null && !Settings.AddSettingsFromFile(playerName))
+						if (!Settings.AddSettingsFromFile(playerName))
 						{
 							Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりません.以下の設定ファイルが存在するか確認してください: " + Settings.PlayerSettingsPath(playerName));
-						}
-						else if (vrmData != null)
-						{
-							if (m_nview != null && m_nview.GetZDO() != null)
-							{
-								var settings = m_nview.GetZDO().GetString("vrmSettings");
-								if (settings != "") Settings.AddSettings(playerName, settings.Split('\n'));
-								else Debug.LogWarning("[ValheimVRM] 設定ファイルが見つかりませんでした: " + playerName);
-							}
 						}
 					}
 
 					var scale = Settings.ReadFloat(playerName, "ModelScale", 1.1f);
-					var orgVrm = vrmData != null ? ImportVRM(vrmData, scale) : ImportVRM(path, scale);
+					var orgVrm =  ImportVRM(path, scale);
 					if (orgVrm != null)
 					{
 						GameObject.DontDestroyOnLoad(orgVrm);
@@ -363,18 +350,6 @@ namespace ValheimVRM
 						lodGroup.animateCrossFading = orgLodGroup.animateCrossFading;
 
 						orgVrm.SetActive(false);
-
-						// VRMデータの共有設定
-						//if (Settings.ReadBool(playerName, "AllowVRMShare", false))
-						//{
-						//	//ref var m_nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
-						//	//if (m_nview.GetZDO() != null && VRMModels.VrmBufDic.ContainsKey(playerName))
-						//	//{
-						//	//	Debug.LogError("VRMデータをセット");
-						//	//	m_nview.GetZDO().Set("vrmData", VRMModels.VrmBufDic[playerName]);
-						//	//	m_nview.GetZDO().Set("vrmSettings", string.Join("\n", Settings.GetSettings(playerName)));
-						//	//}
-						//}
 					}
 				}
 			}
@@ -441,80 +416,18 @@ namespace ValheimVRM
 		{
 			try
 			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParsePath(path);
+				var data = new GlbFileParser(path).Parse();
+				var vrm = new VRMData(data);
+				var context = new VRMImporterContext(vrm);
+				var loaded = default(RuntimeGltfInstance);
+				loaded = context.Load();
+				loaded.ShowMeshes();
+				loaded.Root.transform.localScale *= scale;
 
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
+				Debug.Log("[ValheimVRM] VRM読み込み成功");
+				Debug.Log("[ValheimVRM] VRMファイルパス: " + path);
 
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
-
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale *= scale;
-
-					Debug.Log("[ValheimVRM] VRM読み込み成功");
-					Debug.Log("[ValheimVRM] VRMファイルパス: " + path);
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
-			}
-			catch (Exception ex)
-			{
-				Debug.LogError(ex);
-			}
-
-			return null;
-		}
-
-		private static GameObject ImportVRM(byte[] buf, float scale)
-		{
-			try
-			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParseGlb(buf);
-
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
-
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
-
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale *= scale;
-
-					Debug.Log("[ValheimVRM] VRM読み込み成功");
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
+				return loaded.Root;
 			}
 			catch (Exception ex)
 			{

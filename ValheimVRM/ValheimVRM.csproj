@@ -3,8 +3,8 @@
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net462</TargetFramework>
-    <Version>1.1.2.0</Version>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
+    <Version>1.2.0.0</Version>
+    <AssemblyVersion>1.2.0.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,42 +17,61 @@
     <Reference Include="BepInEx">
       <HintPath>D:\Steam\steamapps\common\Valheim\BepInEx\core\BepInEx.dll</HintPath>
     </Reference>
-    <Reference Include="MeshUtility">
-      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\MeshUtility.dll</HintPath>
+    <Reference Include="FastSpringBone">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\FastSpringBone.dll</HintPath>
+    </Reference>
+    <Reference Include="FastSpringBone10">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\FastSpringBone10.dll</HintPath>
     </Reference>
     <Reference Include="MToon">
       <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\MToon.dll</HintPath>
     </Reference>
-    <Reference Include="ShaderProperty.Runtime">
-      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\ShaderProperty.Runtime.dll</HintPath>
-    </Reference>
     <Reference Include="UniGLTF">
       <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniGLTF.dll</HintPath>
+    </Reference>
+    <Reference Include="UniGLTF.Samples.ScreenSpace">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniGLTF.Samples.ScreenSpace.dll</HintPath>
     </Reference>
     <Reference Include="UniHumanoid">
       <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniHumanoid.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine">
-      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AnimationModule">
-      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AnimationModule.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.AssetBundleModule">
-      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.AssetBundleModule.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
-      <HintPath>D:\Steam\steamapps\common\Valheim\unstripped_corlib\UnityEngine.CoreModule.dll</HintPath>
-    </Reference>
-    <Reference Include="UnityEngine.UI">
-      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.UI.dll</HintPath>
-    </Reference>
-    <Reference Include="UniUnlit">
-      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UniUnlit.dll</HintPath>
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
     </Reference>
     <Reference Include="VRM">
       <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRM.dll</HintPath>
     </Reference>
+    <Reference Include="VRM10">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRM10.dll</HintPath>
+    </Reference>
+    <Reference Include="VrmLib">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VrmLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VRMShaders.GLTF.IO.Runtime">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRMShaders.GLTF.IO.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="VRMShaders.GLTF.UniUnlit.Runtime">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRMShaders.GLTF.UniUnlit.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="VRMShaders.VRM.IO.Runtime">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRMShaders.VRM.IO.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="VRMShaders.VRM10.Format.Runtime">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRMShaders.VRM10.Format.Runtime.dll</HintPath>
+    </Reference>
+    <Reference Include="VRMShaders.VRM10.MToon10.Runtime">
+      <HintPath>D:\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRMShaders.VRM10.MToon10.Runtime.dll</HintPath>
+    </Reference>
+    
   </ItemGroup>
 
 </Project>
