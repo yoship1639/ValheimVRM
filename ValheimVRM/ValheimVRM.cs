@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using UniGLTF;
 using UnityEngine;
 using VRM;
@@ -47,49 +48,7 @@ namespace ValheimVRM
 		}
 	}
 
-	public class VRM
-	{
-		public GameObject VisualModel { get; private set; }
-		public byte[] SrcBytes;
-		public byte[] SrcBytesHash;
-		public byte[] SettingsHash;
-		public string Name { get; private set; }
-		public bool IsShared = false;
-
-		public VRM(GameObject visualModel, string name)
-		{
-			VisualModel = visualModel;
-			Name = name;
-		}
-
-		~VRM()
-		{
-			if (VisualModel != null)
-			{
-				Object.Destroy(VisualModel);
-			}
-		}
-
-		public void RecalculateSrcBytesHash()
-		{
-			using (var md5 = System.Security.Cryptography.MD5.Create())
-			{
-				md5.TransformFinalBlock(SrcBytes, 0, SrcBytes.Length);
-				SrcBytesHash = md5.Hash;
-			}
-		}
-
-		public void RecalculateSettingsHash()
-		{
-			using (var md5 = System.Security.Cryptography.MD5.Create())
-			{
-				byte[] inputBytes = System.Text.Encoding.ASCII.GetBytes(string.Join("\n", Settings.GetSettings(Name).ToStringDiffOnly()));
-				SettingsHash = md5.ComputeHash(inputBytes);
-			}
-		}
-	}
-
-	public static class VRMModels
+	public static class VrmManager
 	{
 		public static Dictionary<Player, GameObject> PlayerToVrmInstance = new Dictionary<Player, GameObject>();
 		public static Dictionary<Player, string> PlayerToName = new Dictionary<Player, string>();
@@ -245,7 +204,11 @@ namespace ValheimVRM
 		{
 			if (!__instance.m_isPlayer) return;
 			var player = __instance.GetComponent<Player>();
-			if (player == null || !VRMModels.PlayerToVrmInstance.ContainsKey(player)) return;
+			if (player == null || !VrmManager.PlayerToVrmInstance.ContainsKey(player)) return;
+			
+			var name = VrmManager.PlayerToName[player];
+
+			var settings = Settings.GetSettings(name);
 
 			var hair = __instance.GetField<VisEquipment, GameObject>("m_hairItemInstance");
 			if (hair != null) SetVisible(hair, false);
@@ -254,38 +217,73 @@ namespace ValheimVRM
 			if (beard != null) SetVisible(beard, false);
 
 			var chestList = __instance.GetField<VisEquipment, List<GameObject>>("m_chestItemInstances");
-			if (chestList != null) foreach (var chest in chestList) SetVisible(chest, false);
+			if (chestList != null)
+			{
+				if (!settings.ChestVisible)
+				{
+					foreach (var chest in chestList) SetVisible(chest, false);
+				}
+			}
 
 			var legList = __instance.GetField<VisEquipment, List<GameObject>>("m_legItemInstances");
-			if (legList != null) foreach (var leg in legList) SetVisible(leg, false);
+			if (legList != null)
+			{
+				if (!settings.LegsVisible)
+				{
+					foreach (var leg in legList) SetVisible(leg, false);
+				}
+			}
 
 			var shoulderList = __instance.GetField<VisEquipment, List<GameObject>>("m_shoulderItemInstances");
-			if (shoulderList != null) foreach (var shoulder in shoulderList) SetVisible(shoulder, false);
+			if (shoulderList != null)
+			{
+				if (shoulderList != null)
+				{
+					if (!settings.ShouldersVisible)
+					{
+						foreach (var shoulder in shoulderList) SetVisible(shoulder, false);
+					}
+				}
+			}
 
 			var utilityList = __instance.GetField<VisEquipment, List<GameObject>>("m_utilityItemInstances");
-			if (utilityList != null) foreach (var utility in utilityList) SetVisible(utility, false);
+			if (utilityList != null)
+			{
+				if (!settings.UtilityVisible)
+				{
+					foreach (var utility in utilityList) SetVisible(utility, false);
+				}
+			}
 
 			var helmet = __instance.GetField<VisEquipment, GameObject>("m_helmetItemInstance");
-			if (helmet != null) SetVisible(helmet, false);
+			if (helmet != null)
+			{
+				if (!settings.HelmetVisible)
+				{
+					SetVisible(helmet, false);
+				}
+				else
+				{
+					helmet.transform.localScale = settings.HelmetScale;
+					helmet.transform.localPosition = settings.HelmetOffset;
+				}
+			}
 
 			// 武器位置合わせ
-			var name = VRMModels.PlayerToName[player];
-
-			var settings = Settings.GetSettings(name);
 			float equipmentScale = settings.EquipmentScale;
 			Vector3 equipmentScaleVector = new Vector3(equipmentScale, equipmentScale, equipmentScale);
 			
 			var leftItem = __instance.GetField<VisEquipment, GameObject>("m_leftItemInstance");
 			if (leftItem != null)
 			{
-				leftItem.transform.localPosition = settings.LeftHandEquipPos;
+				leftItem.transform.localPosition = settings.LeftHandItemPos;
 				leftItem.transform.localScale = equipmentScaleVector;
 			}
 
 			var rightItem = __instance.GetField<VisEquipment, GameObject>("m_rightItemInstance");
 			if (rightItem != null)
 			{
-				rightItem.transform.localPosition = settings.RightHandEquipPos;
+				rightItem.transform.localPosition = settings.RightHandItemPos;
 				rightItem.transform.localScale = equipmentScaleVector;
 			}
 			
@@ -293,7 +291,9 @@ namespace ValheimVRM
 			var rightBackItem = __instance.GetField<VisEquipment, GameObject>("m_rightBackItemInstance");
 			if (rightBackItem != null)
 			{
-				rightBackItem.transform.localPosition = settings.RightHandBackItemPos / 100.0f;
+				Vector3 offset = rightBackItem.transform.parent == __instance.m_backTool ? settings.RightHandBackItemToolPos : settings.RightHandBackItemPos;
+				
+				rightBackItem.transform.localPosition = offset / 100.0f;
 				rightBackItem.transform.localScale = equipmentScaleVector / 100.0f;
 			}
 			
@@ -334,10 +334,10 @@ namespace ValheimVRM
 				var orgAnim = (player.GetField<Player, Animator>("m_animator"));
 				ragAnim.avatar = orgAnim.avatar;
 
-				if (VRMModels.PlayerToVrmInstance.TryGetValue(player, out var vrm))
+				if (VrmManager.PlayerToVrmInstance.TryGetValue(player, out var vrm))
 				{
 					vrm.transform.SetParent(ragdoll.transform);
-					vrm.GetComponent<VRMAnimationSync>().Setup(ragAnim, Settings.GetSettings(VRMModels.PlayerToName[player]), true);
+					vrm.GetComponent<VRMAnimationSync>().Setup(ragAnim, Settings.GetSettings(VrmManager.PlayerToName[player]), true);
 				}
 			}
 		}
@@ -351,7 +351,7 @@ namespace ValheimVRM
 		{
 			if (!__instance.IsPlayer()) return;
 
-			if (VRMModels.PlayerToVrmInstance.TryGetValue((Player)__instance, out var vrm))
+			if (VrmManager.PlayerToVrmInstance.TryGetValue((Player)__instance, out var vrm))
 			{
 				var lodGroup = vrm.GetComponent<LODGroup>();
 				if (visible)
@@ -373,7 +373,7 @@ namespace ValheimVRM
 		static void Postfix(Player __instance)
 		{
 			string name = null;
-			if (VRMModels.PlayerToName.ContainsKey(__instance)) name = VRMModels.PlayerToName[__instance];
+			if (VrmManager.PlayerToName.ContainsKey(__instance)) name = VrmManager.PlayerToName[__instance];
 			if (name != null && Settings.GetSettings(name).FixCameraHeight)
 			{
 				GameObject.Destroy(__instance.GetComponent<VRMEyePositionSync>());
@@ -390,7 +390,7 @@ namespace ValheimVRM
 			var player = __instance as Player;
 			if (player == null) return true;
 
-			if (VRMModels.PlayerToVrmInstance.TryGetValue(player, out var vrm))
+			if (VrmManager.PlayerToVrmInstance.TryGetValue(player, out var vrm))
 			{
 				var animator = vrm.GetComponentInChildren<Animator>();
 				if (animator == null) return true;
@@ -406,6 +406,64 @@ namespace ValheimVRM
 		}
 	}
 
+	[HarmonyPatch(typeof(Player), "GetStealthFactor")]
+	static class Patch_Player_GetStealthFactor
+	{
+		[HarmonyPostfix]
+		static void Postfix(Player __instance, ref float __result)
+		{
+			string playerName;
+			if (VrmManager.PlayerToName.TryGetValue(__instance, out playerName))
+			{
+				var settings = Settings.GetSettings(playerName);
+				if (settings != null)
+				{
+					__result = Mathf.Clamp01(__result /= settings.StealthScale);
+				}
+			}
+		}
+	}
+
+	// Remove stealth factor check, show stealth hud only if crouching
+	[HarmonyPatch(typeof(Hud), "UpdateStealth")]
+	public static class Patch_Hud_UpdateStealth
+	{
+		[HarmonyReversePatch()]
+		static void Postfix(Hud __instance, Player player, float bowDrawPercentage)
+		{
+			if (player.IsCrouching() && (double) bowDrawPercentage == 0.0)
+			{
+				if (player.IsSensed())
+				{
+					__instance.m_targetedAlert.SetActive(true);
+					__instance.m_targeted.SetActive(false);
+					__instance.m_hidden.SetActive(false);
+				}
+				else if (player.IsTargeted())
+				{
+					__instance.m_targetedAlert.SetActive(false);
+					__instance.m_targeted.SetActive(true);
+					__instance.m_hidden.SetActive(false);
+				}
+				else
+				{
+					__instance.m_targetedAlert.SetActive(false);
+					__instance.m_targeted.SetActive(false);
+					__instance.m_hidden.SetActive(true);
+				}
+				__instance.m_stealthBar.gameObject.SetActive(true);
+				__instance.m_stealthBar.SetValue(player.GetStealthFactor());
+			}
+			else
+			{
+				__instance.m_targetedAlert.SetActive(false);
+				__instance.m_hidden.SetActive(false);
+				__instance.m_targeted.SetActive(false);
+				__instance.m_stealthBar.gameObject.SetActive(false);
+			}
+		}
+	}
+
 	[HarmonyPatch(typeof(Humanoid), "StartAttack")]
 	static class Patch_Humanoid_StartAttack
 	{
@@ -416,11 +474,13 @@ namespace ValheimVRM
 			{
 				ref Attack attack = ref AccessTools.FieldRefAccess<Player, Attack>("m_currentAttack").Invoke(player);
 
+				if (attack == null) return;
+				
 				ref float time = ref AccessTools.FieldRefAccess<Attack, float>("m_time").Invoke(attack);
 				if (time != 0) return;
 				
 				string playerName;
-				if (VRMModels.PlayerToName.TryGetValue(player, out playerName))
+				if (VrmManager.PlayerToName.TryGetValue(player, out playerName))
 				{
 					if (Settings.ContainsSettings(playerName))
 					{
@@ -458,7 +518,7 @@ namespace ValheimVRM
 	[HarmonyPatch(typeof(Player), "GetTotalFoodValue")]
 	static class Patch_Player_GetTotalFoodValue
 	{
-		[HarmonyPostfix]
+		[HarmonyReversePatch]
 		static void Postfix(Player __instance, out float hp, out float stamina)
 		{
 			float baseHealthScale = 1f;
@@ -467,13 +527,16 @@ namespace ValheimVRM
 			float foodStaminaScale = 1f;
 			
 			string playerName;
-			if (VRMModels.PlayerToName.TryGetValue(__instance, out playerName))
+			if (VrmManager.PlayerToName.TryGetValue(__instance, out playerName))
 			{
 				var settings = Settings.GetSettings(playerName);
-				baseHealthScale = settings.BaseHealthScale;
-				foodHealthScale = settings.FoodHealthScale;
-				baseStaminaScale = settings.BaseStaminaScale;
-				foodStaminaScale = settings.FoodStaminaScale;
+				if (settings != null)
+				{
+					baseHealthScale = settings.BaseHealthScale;
+					foodHealthScale = settings.FoodHealthScale;
+					baseStaminaScale = settings.BaseStaminaScale;
+					foodStaminaScale = settings.FoodStaminaScale;
+				}
 			}
 			
 			hp = __instance.m_baseHP * baseHealthScale;
@@ -486,48 +549,237 @@ namespace ValheimVRM
 		}
 	}
 
-	[HarmonyPatch(typeof(Player), "Start")]
-	static class Patch_Player_Start
+	[HarmonyPatch(typeof(Player), "UpdatePlacementGhost")]
+	static class Patch_Player_UpdatePlacementGhost
 	{
-		const int MaxPacketSize = 1024 * 100;
-		
-		class SharedVRMLoadingProcess
+		[HarmonyPostfix]
+		static void UpdatePlacementGhost(Player __instance, bool flashGuardStone)
 		{
-			public bool UseExistingData = false;
-			public List<byte[]> Packets = new List<byte[]>();
-			public bool PacketsDone = false;
-			
-			public bool UseExistingSettings = false;
-			public string Settings = null;
-			public bool SettingsDone = false;
-
-			public bool IsLoaded() => (UseExistingData ? true : PacketsDone) && (UseExistingSettings ? true : SettingsDone);
-
-			public byte[] GetVRMData()
+			var fi = typeof(Player).GetField("m_placementStatus", BindingFlags.NonPublic | BindingFlags.Instance);
+			var val = (int)fi.GetValue(__instance);
+			if (val == 10)
 			{
-				int size = 0;
-				foreach (var packet in Packets)
-				{
-					size += packet.Length;
-				}
-
-				byte[] bytes = new byte[size];
-
-				int s = 0;
-				foreach (var packet in Packets)
-				{
-					Array.Copy(packet, 0, bytes, s, packet.Length);
-					s += packet.Length;
-				}
-
-				return bytes;
+				fi.SetValue(__instance, 0);
 			}
 		}
+	}
 
-		private static Dictionary<long, SharedVRMLoadingProcess> sharedVRMLoadingProcesses = new Dictionary<long, SharedVRMLoadingProcess>();
-
+	[HarmonyPatch(typeof(Game), "SpawnPlayer")]
+	static class Patch_Game_SpawnPlayer
+	{
+		[HarmonyPostfix]
+		static void Postfix(Game __instance, bool ___m_firstSpawn, Player __result)
+		{
+			if (___m_firstSpawn)
+			{
+				__result.GetComponent<VrmController>().ShareVrm();
+				__result.GetComponent<VrmController>().QueryAllVrm();
+			}
+		}
+	}
+	
+	[HarmonyPatch(typeof(Player), "OnDestroy")]
+	static class Patch_Player_OnDestroy
+	{
 		[HarmonyPostfix]
 		static void Postfix(Player __instance)
+		{
+			VrmManager.PlayerToName.Remove(__instance);
+            VrmManager.PlayerToVrmInstance.Remove(__instance);
+		}
+	}
+	
+	[HarmonyPatch(typeof(ItemDrop.ItemData), "GetTooltip", new Type[] {typeof(ItemDrop.ItemData), typeof(int), typeof(bool)})]
+	static class Patch_ItemData_GetTooltip
+	{
+		public static float GetFoodHealth(float baseValue, Player player)
+		{
+			string name;
+			if (VrmManager.PlayerToName.TryGetValue(player, out name))
+			{
+				var settings = Settings.GetSettings(name);
+				if (settings != null)
+				{
+					return baseValue * settings.FoodHealthScale;
+				}
+			}
+
+			return baseValue;
+		}
+		
+		public static float GetFoodStamina(float baseValue, Player player)
+		{
+			string name;
+			if (VrmManager.PlayerToName.TryGetValue(player, out name))
+			{
+				var settings = Settings.GetSettings(name);
+				if (settings != null)
+				{
+					return baseValue * settings.FoodStaminaScale;
+				}
+			}
+
+			return baseValue;
+		}
+		
+		public static float GetFoodDuration(float baseValue, Player player)
+		{
+			string name;
+			if (VrmManager.PlayerToName.TryGetValue(player, out name))
+			{
+				var settings = Settings.GetSettings(name);
+				if (settings != null)
+				{
+					return baseValue * settings.DigestionTimeScale;
+				}
+			}
+
+			return baseValue;
+		}
+		
+		[HarmonyTranspiler]
+		static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+		{
+			List<CodeInstruction> instructionList = new List<CodeInstruction>(instructions);
+
+			{
+				int i = instructionList.FindOp(OpCodes.Ldstr, "\n$item_food_health: <color=#ff8080ff>{0}</color>  ($item_current:<color=yellow>{1}</color>)");
+				if (i >= 0)
+				{
+					int j = instructionList.FindOp(OpCodes.Ldfld, Utils.GetField<ItemDrop.ItemData.SharedData>("m_food"), i);
+					if (j >= 0)
+					{
+						instructionList.InsertRange(j + 1, new CodeInstruction[]
+						{
+							new CodeInstruction(OpCodes.Ldloc_0),
+							new CodeInstruction(OpCodes.Call, typeof(Patch_ItemData_GetTooltip).GetMethod("GetFoodHealth"))
+						});
+					}
+				}
+			}
+
+			{
+				int i = instructionList.FindOp(OpCodes.Ldstr, "\n$item_food_stamina: <color=#ffff80ff>{0}</color>  ($item_current:<color=yellow>{1}</color>)");
+				if (i >= 0)
+				{
+					int j = instructionList.FindOp(OpCodes.Ldfld, Utils.GetField<ItemDrop.ItemData.SharedData>("m_foodStamina"), i);
+					if (j >= 0)
+					{
+						instructionList.InsertRange(j + 1, new CodeInstruction[]
+						{
+							new CodeInstruction(OpCodes.Ldloc_0),
+							new CodeInstruction(OpCodes.Call, typeof(Patch_ItemData_GetTooltip).GetMethod("GetFoodStamina"))
+						});
+					}
+				}
+			}
+
+			{
+				int i = instructionList.FindOp(OpCodes.Ldstr, "\n$item_food_duration: <color=orange>{0}</color>");
+				if (i >= 0)
+				{
+					int j = instructionList.FindOp(OpCodes.Ldfld, Utils.GetField<ItemDrop.ItemData.SharedData>("m_foodBurnTime"), i);
+					if (j >= 0)
+					{
+						instructionList.InsertRange(j + 1, new CodeInstruction[]
+						{
+							new CodeInstruction(OpCodes.Ldloc_0),
+							new CodeInstruction(OpCodes.Call, typeof(Patch_ItemData_GetTooltip).GetMethod("GetFoodDuration"))
+						});
+					}
+				}
+			}
+
+			return instructionList;
+		}
+	}
+
+	[HarmonyPatch(typeof(Player), "EatFood")]
+	static class Patch_Player_EatFood
+	{
+		[HarmonyTranspiler]
+		static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+		{
+			var instructionList = new List<CodeInstruction>(instructions);
+
+			for (int i = instructionList.FindOp(OpCodes.Ldstr, " $item_food_health ") - 1; i >= 0; i--)
+			{
+				if (instructionList[i].IsOp(OpCodes.Ldfld, Utils.GetField<ItemDrop.ItemData.SharedData>("m_food")))
+				{
+					instructionList.InsertRange(i + 1, new CodeInstruction[]
+					{
+						new CodeInstruction(OpCodes.Ldarg_0),
+						new CodeInstruction(OpCodes.Call, typeof(Patch_ItemData_GetTooltip).GetMethod("GetFoodHealth"))
+					});
+					
+					break;
+				}
+			}
+			
+			for (int i = instructionList.FindOp(OpCodes.Ldstr, " $item_food_stamina ") - 1; i >= 0; i--)
+			{
+				if (instructionList[i].IsOp(OpCodes.Ldfld, Utils.GetField<ItemDrop.ItemData.SharedData>("m_foodStamina")))
+				{
+					instructionList.InsertRange(i + 1, new CodeInstruction[]
+					{
+						new CodeInstruction(OpCodes.Ldarg_0),
+						new CodeInstruction(OpCodes.Call, typeof(Patch_ItemData_GetTooltip).GetMethod("GetFoodStamina"))
+					});
+					
+					break;
+				}
+			}
+			
+			return instructionList;
+		}
+	}
+	
+	[HarmonyPatch(typeof(Player), "UpdateFood")]
+	static class Patch_Player_UpdateFood
+	{
+		public static float GetDigestionSpeed(float baseValue, Player player)
+		{
+			string name;
+			if (VrmManager.PlayerToName.TryGetValue(player, out name))
+			{
+				var settings = Settings.GetSettings(name);
+				if (settings != null)
+				{
+					return baseValue / settings.DigestionTimeScale;
+				}
+			}
+
+			return baseValue;
+		}
+		
+		[HarmonyTranspiler]
+		static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)
+		{
+			var instructionList = new List<CodeInstruction>(instructions);
+
+			for (int i = instructionList.FindOp(OpCodes.Ldfld, Utils.GetField<Player.Food>("m_time")) + 1; i < instructionList.Count; i++)
+			{
+				if (instructionList[i].opcode == OpCodes.Ldc_R4 && (float)instructionList[i].operand == 1.0f)
+				{
+					instructionList.InsertRange(i + 1, new CodeInstruction[]
+					{
+						new CodeInstruction(OpCodes.Ldarg_0),
+						new CodeInstruction(OpCodes.Call, typeof(Patch_Player_UpdateFood).GetMethod("GetDigestionSpeed"))
+					});
+					
+					break;
+				}
+			}
+
+			return instructionList;
+		}
+	}
+
+	[HarmonyPatch(typeof(Player), "Awake")]
+	static class Patch_Player_Awake
+	{
+		[HarmonyPostfix]
+		static void Postfix(Player __instance, ZNetView ___m_nview)
 		{
 			Commands.Trigger();
 
@@ -547,214 +799,86 @@ namespace ValheimVRM
 				localPlayerName = playerName;
 			}
 			
-			Settings.VrmSettingsContainer settings = null;
-
+			VrmManager.PlayerToName[__instance] = playerName;
+			
 			bool isInMenu = __instance.gameObject.scene.name == "start";
 
 			if (isInMenu)
 			{
-				foreach (var name in VRMModels.VrmDic.Keys)
+				var names = new List<string>(VrmManager.VrmDic.Keys);
+				foreach (var name in names)
 				{
-					var vrm = VRMModels.VrmDic[name];
-					if (vrm.IsShared)
+					var vrm = VrmManager.VrmDic[name];
+					if (vrm.Source == VRM.SourceType.Shared)
 					{
-						VRMModels.VrmDic.Remove(name);
+						VrmManager.VrmDic.Remove(name);
+						Settings.RemoveSettings(name);
 					}
 				}
-				
-				VRMModels.PlayerToName.Clear();
-				VRMModels.PlayerToVrmInstance.Clear();
 
-				sharedVRMLoadingProcesses.Clear();
+                VrmController.CleanupLoadings();
 			}
 
-			// we have to use it in lambdas anyways, so no sense to make it ref
-			var nview = AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(__instance);
-			bool online = nview.GetZDO() != null;
+			bool online = ___m_nview.GetZDO() != null;
 
-			const string fc_hash = "VRM_Hash";                     // send hashes
-			const string fc_data_query = "VRM_Data_Query";         // request data
-			const string fc_data = "VRM_Data";                     // send data packet
-			const string fc_data_cb = "VRM_Datta_Callback";        // request next data packet
-			const string fc_settings_query = "VRM_Settings_Query"; // request settings
-			const string fc_settings = "VRM_Settings";             // send settings
-
-			Action<long, int> sendVrmDataPacket = (target, packetIndex) =>
-			{
-				byte[] vrmBytes = VRMModels.VrmDic[localPlayerName].SrcBytes;
-				int packetCount = Mathf.CeilToInt((float)vrmBytes.Length / MaxPacketSize);
-
-				if (packetIndex >= packetCount)
-				{
-					nview.InvokeRPC(target, fc_data, packetIndex, packetCount, new ZPackage());
-					return;
-				}
-					
-				int packetSize = packetIndex < packetCount - 1
-					? MaxPacketSize
-					: vrmBytes.Length % packetCount;
-				byte[] packetData = new byte[packetSize];
-				Array.Copy(vrmBytes, packetIndex * MaxPacketSize, packetData, 0, packetSize);
-
-				nview.InvokeRPC(target, fc_data, packetIndex, packetCount, new ZPackage(packetData));
-							
-				Debug.Log("[ValheimVRM] sent packet " + (packetIndex + 1) + " of " + packetCount + " to " + (target == ZNetView.Everybody ? "everyone" : target.ToString()));
-			};
-				
-			Action<long> ShareVRM = (target) =>
-			{
-				// We assume that our VRM always have SrcBytes set
-				if (settings.AllowShare && VRMModels.VrmDic.ContainsKey(localPlayerName))
-				{
-					Debug.Log("[ValheimVRM] sharing " + localPlayerName + " vrm");
-
-					var vrm = VRMModels.VrmDic[localPlayerName];
-					
-					nview.InvokeRPC(ZNetView.Everybody, fc_hash, localPlayerName, new ZPackage(vrm.SrcBytesHash), new ZPackage(vrm.SettingsHash));
-
-				}
-			};
-
-			if (online)
-			{
-				nview.Register(fc_hash, (long sender, string name, ZPackage dataHash, ZPackage settingsHash) =>
-				{
-					if (nview.GetZDO().m_owner == sender) return;
-					
-					Debug.Log("[ValheimVRM] got vrm hashes from " + playerName + ": " + dataHash.GetArray().GetHaxadecimalString() + " " + settingsHash.GetArray().GetHaxadecimalString());
-					
-					if (VRMModels.VrmDic.ContainsKey(name))
-					{
-						var vrm = VRMModels.VrmDic[name];
-						var process = new SharedVRMLoadingProcess();
-						bool required = false;
-						
-						if (!Enumerable.SequenceEqual(vrm.SrcBytesHash, dataHash.GetArray()))
-						{
-							nview.InvokeRPC(fc_data_query);
-							required = true;
-						}
-						else
-						{
-							process.UseExistingData = true;
-						}
-
-						if (!Enumerable.SequenceEqual(vrm.SettingsHash, settingsHash.GetArray()))
-						{
-							nview.InvokeRPC(fc_settings_query);
-							required = true;
-						}
-						else
-						{
-							process.UseExistingSettings = true;
-						}
-
-						if (required)
-						{
-							sharedVRMLoadingProcesses.Add(sender, process);
-						}
-					}
-					else
-					{
-						nview.InvokeRPC(fc_data_query);
-						nview.InvokeRPC(fc_settings_query);
-					}
-				});
-				
-				nview.Register(fc_data_query, sender =>
-				{
-					if (nview.GetZDO().m_owner == sender) return;
-					
-					sendVrmDataPacket(sender, 0);
-				});
-
-				nview.Register(fc_data, (long sender, int packetIndex, int totalCount, ZPackage packagedBytes) =>
-				{
-					if (nview.GetZDO().m_owner == sender) return;
-					
-					if (!sharedVRMLoadingProcesses.ContainsKey(sender)) sharedVRMLoadingProcesses.Add(sender, new SharedVRMLoadingProcess());
-					
-					var vrm = sharedVRMLoadingProcesses[sender];
-
-					var bytes = packagedBytes.ReadByteArray();
-
-					if (bytes.Length == 0)
-					{
-						vrm.PacketsDone = true;
-						Debug.Log("[ValheimVRM] received all vrm data packets from " + sender);
-					}
-					else
-					{
-						vrm.Packets.Add(packagedBytes.ReadByteArray());
-						Debug.Log("[ValheimVRM] received vrm data packet " + packetIndex + " of " + totalCount + " from " + sender);
-					}
-
-					nview.InvokeRPC(sender, fc_data_cb, packetIndex);
-					
-					if (vrm.IsLoaded()) SharedVRMLoaded(sender);
-				});
-				
-				nview.Register(fc_data_cb, (long sender, int packetIndex) =>
-				{
-					sendVrmDataPacket(sender, packetIndex + 1);
-				});
-				
-				nview.Register(fc_settings_query, sender =>
-				{
-					if (nview.GetZDO().m_owner == sender) return;
-					
-					nview.InvokeRPC(sender, fc_settings, string.Join("\n", Settings.GetSettings(localPlayerName).ToStringDiffOnly()));
-				});
-				
-				nview.Register(fc_settings, (long sender, string settingsString) =>
-				{
-					if (nview.GetZDO().m_owner == sender) return;
-					
-					if (!sharedVRMLoadingProcesses.ContainsKey(sender)) sharedVRMLoadingProcesses.Add(sender, new SharedVRMLoadingProcess());
-
-					var vrm = sharedVRMLoadingProcesses[sender];
-					
-					vrm.Settings = settingsString;
-					vrm.SettingsDone = true;
-					
-					Debug.Log("[ValheimVRM] received vrm settings from " + sender);
-					
-					if (vrm.IsLoaded()) SharedVRMLoaded(sender);
-				});
-			}
+			var vrmController = __instance.gameObject.AddComponent<VrmController>();
 
 			if (!string.IsNullOrEmpty(playerName))
 			{
-				// If owner of current player or offline
-				if (Settings.globalSettings.AllowLocalVRMsForOtherPlayers ?  true : (online && nview.IsOwner()) || !online)
+				bool settingsUpdated = false;
+				
+				var path = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", $"{playerName}.vrm");
+				var sharedPath = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", "Shared", $"{playerName}.vrm");
+
+				if (!Settings.ContainsSettings(playerName) || Settings.globalSettings.ReloadInMenu && isInMenu)
 				{
-					VRM vrm = null;
-
-					if (!Settings.ContainsSettings(playerName) || Settings.globalSettings.ReloadInMenu && isInMenu)
+					if (File.Exists(path))
 					{
-						// We allow to have no file at all, we just use default parameters
-						Settings.AddSettingsFromFile(playerName);
+						Settings.AddSettingsFromFile(playerName, false);
+						settingsUpdated = true;
 					}
-
-					settings = Settings.GetSettings(playerName);
-					
-					var scale = settings.ModelScale;
-
-					if (!VRMModels.VrmDic.ContainsKey(playerName) || Settings.globalSettings.ReloadInMenu && isInMenu)
+					else if (File.Exists(sharedPath))
 					{
-						var path = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", $"{playerName}.vrm");
-						
+						Settings.AddSettingsFromFile(playerName, true);
+						settingsUpdated = true;
+					}
+				}
+
+				VRM vrm = null;
+				
+				var settings = Settings.GetSettings(playerName);
+
+				if (settings != null)
+				{
+					if (!VrmManager.VrmDic.ContainsKey(playerName) || Settings.globalSettings.ReloadInMenu && isInMenu)
+					{
 						if (File.Exists(path))
 						{
-							var vrmVisual = ImportVRM(path, scale);
+							var vrmVisual = VRM.ImportVisual(path, settings.ModelScale);
 							if (vrmVisual != null)
 							{
 								vrm = new VRM(vrmVisual, playerName);
-								vrm = VRMModels.RegisterVrm(vrm, __instance.GetComponentInChildren<LODGroup>());
+								vrm = VrmManager.RegisterVrm(vrm, __instance.GetComponentInChildren<LODGroup>());
 								if (vrm != null)
 								{
-									vrm.SrcBytes = File.ReadAllBytes(path);
+									vrm.Src = File.ReadAllBytes(path);
 									vrm.RecalculateSrcBytesHash();
+								}
+							}
+						}
+						else if (File.Exists(sharedPath))
+						{
+							var vrmVisual = VRM.ImportVisual(sharedPath, settings.ModelScale);
+							if (vrmVisual != null)
+							{
+								vrm = new VRM(vrmVisual, playerName);
+								vrm = VrmManager.RegisterVrm(vrm, __instance.GetComponentInChildren<LODGroup>());
+								if (vrm != null)
+								{
+									vrm.Src = File.ReadAllBytes(sharedPath);
+									vrm.RecalculateSrcBytesHash();
+
+									vrm.Source = VRM.SourceType.Shared;
 								}
 							}
 						}
@@ -765,255 +889,20 @@ namespace ValheimVRM
 					}
 					else
 					{
-						vrm = VRMModels.VrmDic[playerName];
+						vrm = VrmManager.VrmDic[playerName];
 					}
+				}
 
-					if (Settings.globalSettings.ReloadInMenu && isInMenu && vrm != null)
+				if (vrm != null)
+				{
+                    if (settingsUpdated)
 					{
 						vrm.RecalculateSettingsHash();
 					}
-
-					if (online && nview.IsOwner())
-					{
-						nview.InvokeRPC(ZNetView.Everybody, fc_data_query);
-						nview.InvokeRPC(ZNetView.Everybody, fc_settings_query);
-					}
-
-					if (vrm != null)
-					{
-						if (online && nview.IsOwner())
-						{
-							ShareVRM(ZNetView.Everybody);
-						}
-
-						SetVrmToPlayer(__instance, playerName);
-					}
-				}
-			}
-		}
-
-		private static GameObject ImportVRM(string path, float scale)
-		{
-			try
-			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParsePath(path);
-
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
-
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
-
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale *= scale;
-
-					Debug.Log("[ValheimVRM] VRM read successful");
-					Debug.Log("[ValheimVRM] vrm file path: " + path);
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
-			}
-			catch (Exception ex)
-			{
-				Debug.LogError(ex);
-			}
-
-			return null;
-		}
-
-		private static GameObject ImportVRM(byte[] buf, float scale)
-		{
-			try
-			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParseGlb(buf);
-
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
-
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
-
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale *= scale;
-
-					Debug.Log("[ValheimVRM] VRM read successful");
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
-			}
-			catch (Exception ex)
-			{
-				Debug.LogError(ex);
-			}
-
-			return null;
-		}
-
-		private static void SetVrmToPlayer(Player player, string vrmName)
-		{
-			var settings = Settings.GetSettings(vrmName);
-			
-			player.m_maxInteractDistance *= settings.InteractionDistanceScale;
-			player.m_maxPlaceDistance *= settings.InteractionDistanceScale;
-			player.m_swimDepth *= settings.SwimDepthScale;
-			player.m_swimSpeed *= settings.SwimSpeedScale;
-			player.m_maxCarryWeight *= settings.WeightLimitScale;
-			player.m_walkSpeed *= settings.MovementSpeedScale;
-			player.m_runSpeed *= settings.MovementSpeedScale;
-			player.m_jumpForce *= settings.JumpForceScale;
-			
-			var vrmModel = Object.Instantiate(VRMModels.VrmDic[vrmName].VisualModel);
-			VRMModels.PlayerToVrmInstance[player] = vrmModel;
-			VRMModels.PlayerToName[player] = vrmName;
-			vrmModel.SetActive(true);
-			vrmModel.transform.SetParent(player.GetComponentInChildren<Animator>().transform.parent, false);
-
-			float newHeight = settings.PlayerHeight;
-			float newRadius = settings.PlayerRadius;
-
-			var collider = player.gameObject.GetComponent<CapsuleCollider>();
-			collider.height = newHeight;
-			collider.radius = newRadius;
-			collider.center = new Vector3(0, newHeight / 2, 0);
-
-			player.GetComponent<Rigidbody>().centerOfMass = collider.center;
-
-			foreach (var smr in player.GetVisual().GetComponentsInChildren<SkinnedMeshRenderer>())
-			{
-				smr.forceRenderingOff = true;
-				smr.updateWhenOffscreen = true;
-			}
-
-			var orgAnim = AccessTools.FieldRefAccess<Player, Animator>(player, "m_animator");
-			orgAnim.keepAnimatorControllerStateOnDisable = true;
-			orgAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
-
-			vrmModel.transform.localPosition = orgAnim.transform.localPosition;
-
-			// アニメーション同期
-			if (vrmModel.GetComponent<VRMAnimationSync>() == null) vrmModel.AddComponent<VRMAnimationSync>().Setup(orgAnim, settings, false);
-			else vrmModel.GetComponent<VRMAnimationSync>().Setup(orgAnim, settings, false);
-
-			// カメラ位置調整
-			if (settings.FixCameraHeight)
-			{
-				var vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.LeftEye);
-				if (vrmEye == null) vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Head);
-				if (vrmEye == null) vrmEye = vrmModel.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Neck);
-				if (vrmEye != null)
-				{
-					if (player.gameObject.GetComponent<VRMEyePositionSync>() == null) player.gameObject.AddComponent<VRMEyePositionSync>().Setup(vrmEye);
-					else player.gameObject.GetComponent<VRMEyePositionSync>().Setup(vrmEye);
-				}
-			}
-
-			// MToonの場合環境光の影響をカラーに反映する
-			if (settings.UseMToonShader)
-			{
-				if (vrmModel.GetComponent<MToonColorSync>() == null) vrmModel.AddComponent<MToonColorSync>().Setup(vrmModel);
-				else vrmModel.GetComponent<MToonColorSync>().Setup(vrmModel);
-			}
-
-			// SpringBone設定
-			var stiffness = settings.SpringBoneStiffness;
-			var gravity = settings.SpringBoneGravityPower;
-			foreach (var springBone in vrmModel.GetComponentsInChildren<VRMSpringBone>())
-			{
-				springBone.m_stiffnessForce *= stiffness;
-				springBone.m_gravityPower *= gravity;
-				springBone.m_updateType = VRMSpringBone.SpringBoneUpdateType.FixedUpdate;
-				springBone.m_center = null;
-			}
-		}
-
-		private static void SharedVRMLoaded(long sender)
-		{
-			var data = sharedVRMLoadingProcesses[sender];
-			
-			foreach (var player in Player.GetAllPlayers())
-			{
-				ref var nview = ref AccessTools.FieldRefAccess<Player, ZNetView>("m_nview").Invoke(player);
-				if (nview.GetZDO().m_owner == sender)
-				{
-					string playerName = player.GetPlayerName();
-					if (playerName == "" || playerName == "...") playerName = Game.instance.GetPlayerProfile().GetName();
-
-					if (!data.UseExistingSettings)
-					{
-						Settings.AddSettingsRaw(playerName, data.Settings.Split('\n'));
-					}
-
-					bool vrmSuccess = false;
-					if (!data.UseExistingData)
-					{
-						var settings = Settings.GetSettings(playerName);
 						
-						var scale = settings.ModelScale;
-
-						byte[] vrmBytes = data.GetVRMData();
-						VRM vrm = new VRM(ImportVRM(data.GetVRMData(), scale), playerName);
-						vrm = VRMModels.RegisterVrm(vrm, player.GetComponentInChildren<LODGroup>());
-						if (vrm != null)
-						{
-							vrm.IsShared = true;
-
-							vrm.SrcBytes = vrmBytes;
-							vrm.RecalculateSrcBytesHash();
-							vrm.SrcBytes = null;
-							
-							vrmSuccess = true;
-						}
-					}
-
-					if (vrmSuccess)
-					{
-						SetVrmToPlayer(player, playerName);
-
-						if (!data.UseExistingSettings)
-						{
-							VRMModels.VrmDic[playerName].RecalculateSettingsHash();
-						}
-					}
-					else
-					{
-						Debug.LogError("[ValheimVRM] failed to set setup vrm, downloaded from " + playerName);
-					}
-
-					break;
+					vrm.SetToPlayer(__instance);
 				}
 			}
-			
-			sharedVRMLoadingProcesses.Remove(sender);
 		}
 	}
 }

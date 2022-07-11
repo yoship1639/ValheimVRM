@@ -17,7 +17,7 @@ namespace ValheimVRM
 		private bool ragdoll;
 		private Settings.VrmSettingsContainer settings;
 		private Vector3? adjustPos;
-		private int stateHash;
+		private int oldStateHash;
 
 		public void Setup(Animator orgAnim, Settings.VrmSettingsContainer settings, bool isRagdoll = false)
 		{
@@ -49,7 +49,7 @@ namespace ValheimVRM
 				vrmPose.Dispose();
 		}
 
-		private static int prevHash = 0;
+		//private static int prevHash = 0;
 
 		const int FirstTime         = -161139084;
 		const int Usually           =  229373857;  // standing idle
@@ -99,6 +99,39 @@ namespace ValheimVRM
 
 			vrmAnim.transform.localPosition += Vector3.up * settings.ModelOffsetY;
 		}
+
+		private Vector3 StateHashToOffset(int stateHash, out float interpSpeed)
+		{
+			interpSpeed = Time.deltaTime * 5;
+			switch (stateHash)
+			{
+				case StartToSitDown:
+				case SittingIdle:
+					return settings.SittingIdleOffset;
+
+				case SittingChair:
+					return settings.SittingOnChairOffset;
+
+				case SittingThrone:
+					return settings.SittingOnThroneOffset;
+				
+				case SittingShip:
+					return settings.SittingOnShipOffset;
+				
+				case HoldingMast:
+					return settings.HoldingMastOffset;
+				
+				case HoldingDragon:
+					return settings.HoldingDragonOffset;
+				
+				case Sleeping:
+					return settings.SleepingOffset;
+				
+				default:
+					interpSpeed = 1;
+					return Vector3.zero;
+			}
+		}
 		
 		void LateUpdate()
 		{
@@ -109,8 +142,9 @@ namespace ValheimVRM
 			orgPose.GetHumanPose(ref hp);
 			vrmPose.SetHumanPose(ref hp);
 
-			var newStateHash = orgAnim.GetCurrentAnimatorStateInfo(0).shortNameHash;
-			var adjustFromHips = adjustHipHashes.Contains(newStateHash);
+			var curStateHash = orgAnim.GetCurrentAnimatorStateInfo(0).shortNameHash;
+			var nextState = orgAnim.GetNextAnimatorStateInfo(0);
+			var nextStateHash = nextState.shortNameHash;
 
 			//if (newStateHash != prevHash)
 			//{
@@ -123,58 +157,59 @@ namespace ValheimVRM
 			
 			vrmHip.position = orgAnim.GetBoneTransform(HumanBodyBones.Hips).position;
 
-			var newAdjustPos = new Vector3();
+			Vector3 actualAdjustHipPos;
+			float actualInterpSpeed;
 
-			if (!adjustFromHips)
+			//---------
+			
+			var curAdjustPos = Vector3.zero;
+
+			if (!adjustHipHashes.Contains(curStateHash))
 			{
-				// Foot doesn't seem to work as intended on characters with non-standard sizes
-				// It's safer to use provided player height to evaluate the offset
-
 				Vector3 curOrgHipPos = orgHip.position - orgHip.parent.position;
 				Vector3 curVrmHipPos = curOrgHipPos * playerScaleFactor;
 				
-				newAdjustPos = curVrmHipPos - curOrgHipPos;
+				curAdjustPos = curVrmHipPos - curOrgHipPos;
 			}
 
-			float interpSpeed = Time.deltaTime * 5;
+			float curInterpSpeed = Time.deltaTime * 5;
+			Vector3 curOffset = StateHashToOffset(curStateHash, out curInterpSpeed);
+			if (curOffset != Vector3.zero) curAdjustPos += orgHip.transform.rotation * curOffset;
 			
-			switch (newStateHash)
+			//---------
+			
+			var nextAdjustPos = Vector3.zero;
+
+			if (nextStateHash != 0)
 			{
-				case StartToSitDown:
-				case SittingIdle:
-					newAdjustPos += orgHip.transform.rotation * settings.SittingIdleOffset;
-					break;
+				if (!adjustHipHashes.Contains(nextStateHash))
+				{
+					Vector3 nextOrgHipPos = orgHip.position - orgHip.parent.position;
+					Vector3 nextVrmHipPos = nextOrgHipPos * playerScaleFactor;
 				
-				case SittingChair:
-					newAdjustPos += orgHip.transform.rotation * settings.SittingOnChairOffset;
-					break;
-				
-				case SittingThrone:
-					newAdjustPos += orgHip.transform.rotation * settings.SittingOnThroneOffset;
-					break;
-				
-				case SittingShip:
-					newAdjustPos += orgHip.transform.rotation * settings.SittingOnShipOffset;
-					break;
-				
-				case HoldingMast:
-					newAdjustPos += orgHip.transform.rotation * settings.HoldingMastOffset;
-					break;
-				
-				case HoldingDragon:
-					newAdjustPos += orgHip.transform.rotation * settings.HoldingDragonOffset;
-					break;
-				
-				case Sleeping:
-					newAdjustPos += orgHip.transform.rotation * settings.SleepingOffset;
-					break;
-				
-				default:
-					interpSpeed = 1;
-					break;
+					nextAdjustPos = nextVrmHipPos - nextOrgHipPos;
+				}
+
+				float nextInterpSpeed = Time.deltaTime * 5;
+				Vector3 nextOffset = StateHashToOffset(nextStateHash, out nextInterpSpeed);
+				if (nextOffset != Vector3.zero) nextAdjustPos += orgHip.transform.rotation * nextOffset;
+
+				float trans = Mathf.Clamp01(nextState.normalizedTime * nextState.length / 0.5f);
+
+				actualInterpSpeed = Mathf.Lerp(curInterpSpeed, nextInterpSpeed, trans);
+
+				actualAdjustHipPos = Vector3.Lerp(curAdjustPos, nextAdjustPos, trans);
+			}
+			else
+			{
+				actualInterpSpeed = curInterpSpeed;
+
+				actualAdjustHipPos = curAdjustPos;
 			}
 
-			adjustPos = adjustPos.HasValue ? Vector3.Lerp(adjustPos.Value, newAdjustPos, interpSpeed) : newAdjustPos;
+			//---------
+			
+			adjustPos = adjustPos.HasValue ? Vector3.Lerp(adjustPos.Value, actualAdjustHipPos, actualInterpSpeed) : curAdjustPos;
 			
 			vrmHip.position += adjustPos.Value;
 			
@@ -198,7 +233,7 @@ namespace ValheimVRM
 
 			vrmAnim.transform.localPosition += Vector3.up * settings.ModelOffsetY;
 
-			stateHash = newStateHash;
+			oldStateHash = curStateHash;
 		}
 	}
 }

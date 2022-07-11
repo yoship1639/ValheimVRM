@@ -4,12 +4,20 @@
     <OutputType>Library</OutputType>
     <TargetFramework>net462</TargetFramework>
     <Version>1.1.2.0</Version>
-    <AssemblyVersion>1.1.2.0</AssemblyVersion>
+    <AssemblyVersion>1.1.3.0</AssemblyVersion>
+    <PackageVersion>1.1.3.0</PackageVersion>
+  </PropertyGroup>
+
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugType>pdbonly</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
     <Reference Include="0Harmony">
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim\BepInEx\core\0Harmony.dll</HintPath>
+    </Reference>
+    <Reference Include="assembly_guiutils">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\assembly_guiutils.dll</HintPath>
     </Reference>
     <Reference Include="assembly_valheim">
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\assembly_valheim.dll</HintPath>
@@ -56,6 +64,17 @@
     <Reference Include="VRM">
       <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\VRM.dll</HintPath>
     </Reference>
+    <Reference Include="assembly_utils">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\Valheim\valheim_Data\Managed\assembly_utils.dll</HintPath>
+    </Reference>
   </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CloudinaryDotNet" Version="1.18.1" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="set GamePath=C:\Program Files (x86)\Steam\steamapps\common\Valheim\BepInEx\plugins\&#xA;&#xA;del &quot;%GamePath%$(TargetFileName)&quot;&#xA;del &quot;%GamePath%$(TargetName).pdb&quot;&#xA;del &quot;%GamePath%$(TargetFileName).mdb&quot;&#xA;&#xA;if $(ConfigurationName)==Debug goto DEBUG&#xA;if $(ConfigurationName)==Release goto RELEASE&#xA;goto END&#xA;&#xA;:DEBUG&#xA;$(SolutionDir)pdb2mdb.exe $(TargetPath)&#xA;copy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;%GamePath%$(TargetFileName)&quot;&#xA;copy &quot;$(TargetDir)$(TargetName).pdb&quot; &quot;%GamePath%$(TargetName).pdb&quot;&#xA;copy &quot;$(TargetDir)$(TargetFileName).mdb&quot; &quot;%GamePath%$(TargetFileName).mdb&quot;&#xA;goto END&#xA;&#xA;:RELEASE&#xA;copy &quot;$(TargetDir)$(TargetFileName)&quot; &quot;%GamePath%$(TargetFileName)&quot;&#xA;goto END&#xA;&#xA;:END" />
+  </Target>
 
 </Project>

@@ -4,8 +4,11 @@ using System.ComponentModel;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text.RegularExpressions;
 using UnityEngine;
+using VRM;
+using Object = UnityEngine.Object;
 
 namespace ValheimVRM
 {
@@ -16,22 +19,26 @@ namespace ValheimVRM
         {
             public override string ToString()
             {
-                return string.Join("\n", from field in GetType().GetFields() select field.Name + "=" + field.GetValue(this));
+                return string.Join("\n", from field in GetType().GetFields() where field.GetCustomAttribute(typeof(NonSerializedAttribute)) == null select field.Name + "=" + field.GetValue(this));
             }
 
             public string ToStringDiffOnly()
             {
                 var defaults = Activator.CreateInstance(GetType());
-                return string.Join("\n", from field in GetType().GetFields() where !field.GetValue(this).Equals(field.GetValue(defaults)) select field.Name + "=" + field.GetValue(this));
+                return string.Join("\n", from field in GetType().GetFields() where !field.GetValue(this).Equals(field.GetValue(defaults)) && field.GetCustomAttribute(typeof(NonSerializedAttribute)) == null select field.Name + "=" + field.GetValue(this));
             }
 
             public void LoadFrom(Dictionary<string, string> data)
             {
                 var defaults = Activator.CreateInstance(GetType());
+                Dictionary<string, object> changes = new Dictionary<string, object>();
                 
                 List<string> unknownNames = data.Keys.ToList();
                 foreach (var field in GetType().GetFields())
                 {
+                    if (field.GetCustomAttribute(typeof(NonSerializedAttribute)) != null) continue;
+                    
+                    var old = field.GetValue(this);
                     object value = field.GetValue(defaults);
                     string valueStr;
                     if (data.TryGetValue(field.Name, out valueStr))
@@ -105,19 +112,25 @@ namespace ValheimVRM
                                     throw new FormatException();
                                 }
                             }
+                            else if (field.FieldType.IsEnum)
+                            {
+                                value = Enum.ToObject(field.FieldType, valueStr);
+                            }
                             else
                             {
                                 Debug.LogWarning("[ValheimVRM] unsupported setting type: " + field.FieldType.FullName + " " + field.Name);
                             }
                         }
-                        catch (FormatException ex)
+                        catch (Exception)
                         {
                             Debug.LogError("[ValheimVRM] failed to read setting: " + field.Name + "=" + valueStr);
                         }
 
                         unknownNames.Remove(field.Name);
                     }
-                    
+
+                    if (!old.Equals(value)) changes[field.Name] = old;
+
                     field.SetValue(this, value);
                 }
 
@@ -128,33 +141,64 @@ namespace ValheimVRM
                         Debug.LogWarning("[ValheimVRM] unknown setting: " + name + "=" + data[name]);
                     }
                 }
+
+                OnUpdate(changes);
             }
 
             public void Reset()
             {
                 var defaults = Activator.CreateInstance(GetType());
+                Dictionary<string, object> changes = new Dictionary<string, object>();
                 
                 foreach (var field in GetType().GetFields())
                 {
-                    field.SetValue(this, field.GetValue(defaults));
+                    if (field.GetCustomAttribute(typeof(NonSerializedAttribute)) != null) continue;
+                    
+                    var old = field.GetValue(this);
+                    var value = field.GetValue(defaults);
+                    field.SetValue(this, value);
+                    if (!old.Equals(value)) changes[field.Name] = old;
                 }
+                
+                OnUpdate(changes);
             }
 
             public void CopyFrom(Container another)
             {
+                Dictionary<string, object> changes = new Dictionary<string, object>();
+                
                 foreach (var field in GetType().GetFields())
                 {
-                    field.SetValue(this, field.GetValue(another));
+                    if (field.GetCustomAttribute(typeof(NonSerializedAttribute)) != null) continue;
+                    
+                    var old = field.GetValue(this);
+                    var value = field.GetValue(another);
+                    field.SetValue(this, value);
+                    if (!old.Equals(value)) changes[field.Name] = old;
                 }
+                
+                OnUpdate(changes);
+            }
+
+            public virtual void OnUpdate(Dictionary<string, object> oldValues)
+            {
+                
             }
         }
 
         public class VrmSettingsContainer : Container
         {
+            [NonSerializedAttribute]
+            public string Name;
+            
             public float ModelScale = 1.1f;
             public float ModelOffsetY = 0.0f;
             public float PlayerHeight = 1.85f;
             public float PlayerRadius = 0.5f;
+
+            public float HeightAspect => PlayerHeight / 1.85f;
+            public float RadiusAspect => PlayerRadius / 0.5f;
+            
             public Vector3 SittingOnChairOffset = Vector3.zero;
             public Vector3 SittingOnThroneOffset = Vector3.zero;
             public Vector3 SittingOnShipOffset = Vector3.zero;
@@ -163,10 +207,20 @@ namespace ValheimVRM
             public Vector3 SittingIdleOffset = Vector3.zero;
             public Vector3 SleepingOffset = Vector3.zero;
 
-            public Vector3 RightHandEquipPos = Vector3.zero;
-            public Vector3 LeftHandEquipPos = Vector3.zero;
+            public Vector3 RightHandItemPos = Vector3.zero;
+            public Vector3 LeftHandItemPos = Vector3.zero;
             public Vector3 RightHandBackItemPos = Vector3.zero;
+            public Vector3 RightHandBackItemToolPos = Vector3.zero;
             public Vector3 LeftHandBackItemPos = Vector3.zero;
+
+            public bool HelmetVisible = false;
+            public Vector3 HelmetScale = Vector3.one;
+            public Vector3 HelmetOffset = Vector3.zero;
+
+            public bool ChestVisible = false;
+            public bool ShouldersVisible = false;
+            public bool UtilityVisible = false;
+            public bool LegsVisible = false;
 
             public float ModelBrightness = 0.8f;
             public bool FixCameraHeight = true;
@@ -192,17 +246,144 @@ namespace ValheimVRM
             public float WeightLimitScale = 1.0f;
             public float MovementSpeedScale = 1.0f;
             public float JumpForceScale = 1.0f;
+            public float StealthScale = 1.0f;
+            public float DigestionTimeScale = 1.0f;
+
+            public override void OnUpdate(Dictionary<string, object> oldValues)
+            {
+                if (!VrmManager.VrmDic.ContainsKey(Name)) return;
+                
+                Player player = null;
+
+                foreach (var p in Player.GetAllPlayers())
+                {
+                    if (p.GetPlayerName() == Name)
+                    {
+                        player = p;
+                        break;
+                    }
+                }
+
+                if (player == null) return;
+
+                foreach (var oldValue in oldValues)
+                {
+                    switch (oldValue.Key)
+                    {
+                        case nameof(ModelScale):
+                            VRM vrm;
+                            if (VrmManager.VrmDic.TryGetValue(Name, out vrm))
+                            {
+                                vrm.VisualModel.transform.localScale = Vector3.one * ModelScale;
+                                VrmManager.PlayerToVrmInstance[player].transform.localScale = Vector3.one * ModelScale;
+                            }
+                            break;
+                        
+                        case nameof(PlayerHeight):
+                            player.GetComponent<CapsuleCollider>().height = PlayerHeight;
+                            player.GetComponent<CapsuleCollider>().center = new Vector3(0, PlayerHeight / 2, 0);
+                            player.GetComponent<Rigidbody>().centerOfMass = new Vector3(0, PlayerHeight / 2, 0);
+                            break;
+                        
+                        case nameof(PlayerRadius):
+                            player.GetComponent<CapsuleCollider>().radius = PlayerRadius;
+                            break;
+                        
+                        case nameof(SpringBoneStiffness):
+                            foreach (var bone in player.GetComponent<VrmController>().visual.GetComponentsInChildren<VRMSpringBone>())
+                            {
+                                bone.m_stiffnessForce = bone.m_stiffnessForce / (float)oldValue.Value * SpringBoneStiffness;
+                            }
+                            break;
+                        
+                        case nameof(SpringBoneGravityPower):
+                            foreach (var bone in player.GetComponent<VrmController>().visual.GetComponentsInChildren<VRMSpringBone>())
+                            {
+                                bone.m_gravityPower = bone.m_gravityPower / (float)oldValue.Value * SpringBoneGravityPower;
+                            }
+                            break;
+                        
+                        case nameof(InteractionDistanceScale):
+                            player.m_maxInteractDistance = player.m_maxInteractDistance / (float)oldValue.Value * InteractionDistanceScale;
+                            player.m_maxPlaceDistance = player.m_maxPlaceDistance / (float)oldValue.Value * InteractionDistanceScale;
+                            break;
+
+                        case nameof(SwimDepthScale):
+                            player.m_swimDepth = player.m_swimDepth / (float)oldValue.Value * SwimDepthScale;
+                            break;
+    
+                        case nameof(SwimSpeedScale):
+                            player.m_swimSpeed = player.m_swimSpeed / (float)oldValue.Value * SwimSpeedScale;
+                            break;
+    
+                        case nameof(WeightLimitScale):
+                            player.m_maxCarryWeight = player.m_maxCarryWeight / (float)oldValue.Value * WeightLimitScale;
+                            break;
+    
+                        case nameof(MovementSpeedScale):
+                            player.m_walkSpeed = player.m_walkSpeed / (float)oldValue.Value * MovementSpeedScale;
+                            player.m_runSpeed = player.m_runSpeed / (float)oldValue.Value * MovementSpeedScale;
+                            break;
+
+                        case nameof(JumpForceScale):
+                            player.m_jumpForce = player.m_jumpForce / (float)oldValue.Value * JumpForceScale;
+                            break;
+                    }
+                }
+            }
         }
 
         public class GlobalSettingsContainer : Container
         {
             public bool ReloadInMenu = false;
-            public bool AllowLocalVRMsForOtherPlayers = true;
+            public bool AcceptVrmSharing = true;
+            public bool DrawPlayerSizeGizmo = false;
+            public float StartVrmShareDelay = 10.0f;
+            public bool ForceWindDisabled = false;
+            public bool AllowIndividualWinds = true;
+
+            public override void OnUpdate(Dictionary<string, object> oldValues)
+            {
+                foreach (var oldValue in oldValues)
+                {
+                    switch (oldValue.Key)
+                    {
+                        case nameof(DrawPlayerSizeGizmo):
+                        {
+                            var controller = VrmController.GetLocalController();
+                            if (controller != null)
+                            {
+                                if (DrawPlayerSizeGizmo)
+                                {
+                                    controller.ActivateSizeGizmo();
+                                }
+                                else
+                                {
+                                    controller.DeactivateSizeGizmo();
+                                }
+                            }
+                        }
+                            break;
+                        case nameof(ForceWindDisabled):
+                            foreach (var controller in Object.FindObjectsOfType<VrmController>())
+                            {
+                                controller.ResetSpringBonesWind();
+                            }
+                            break;
+                        case nameof(AllowIndividualWinds):
+                            foreach (var controller in Object.FindObjectsOfType<VrmController>())
+                            {
+                                controller.ReloadSpringBones();
+                            }
+                            break;
+                    }
+                }
+            }
         }
 
         public static string ValheimVRMDir => Path.Combine(Environment.CurrentDirectory, "ValheimVRM");
 
-		public static string PlayerSettingsPath(string playerName) => Path.Combine(ValheimVRMDir, $"settings_{playerName}.txt");
+		public static string PlayerSettingsPath(string playerName, bool shared) => Path.Combine(ValheimVRMDir, shared ? "Shared" : "", $"settings_{playerName}.txt");
         private static Dictionary<string, VrmSettingsContainer> playerSettings = new Dictionary<string, VrmSettingsContainer>();
 
         public static readonly GlobalSettingsContainer globalSettings = new GlobalSettingsContainer();
@@ -212,9 +393,9 @@ namespace ValheimVRM
             return playerSettings.ContainsKey(playerName) ? playerSettings[playerName] : null;
         }
 
-        public static void AddSettingsFromFile(string playerName)
+        public static void AddSettingsFromFile(string playerName, bool shared)
         {
-            var path = PlayerSettingsPath(playerName);
+            var path = PlayerSettingsPath(playerName, shared);
             if (File.Exists(path))
             {
                 AddSettingsRaw(playerName, File.ReadAllLines(path));
@@ -222,8 +403,9 @@ namespace ValheimVRM
             else
             {
                 if (!playerSettings.ContainsKey(playerName)) playerSettings[playerName] = new VrmSettingsContainer();
-                else playerSettings[playerName].Reset();
-                
+                playerSettings[playerName].Name = playerName;
+                playerSettings[playerName].Reset();
+
                 Debug.Log("[ValheimVRM] loaded settings for " + playerName + ":\n" + playerSettings[playerName].ToString());
             }
         }
@@ -238,6 +420,7 @@ namespace ValheimVRM
             }
 
             if (!playerSettings.ContainsKey(playerName)) playerSettings[playerName] = new VrmSettingsContainer();
+            playerSettings[playerName].Name = playerName;
             playerSettings[playerName].LoadFrom(settingsData);
 
             int maxNameWidth = settingsData.Max(kvp => kvp.Key.Length);
@@ -288,6 +471,11 @@ namespace ValheimVRM
             }
             
             Debug.Log("[ValheimVRM] loaded global settings:\n" + globalSettings.ToString());
+        }
+
+        public static void RemoveSettings(string playerName)
+        {
+            if (playerSettings.ContainsKey(playerName)) playerSettings.Remove(playerName);
         }
     }
 }
