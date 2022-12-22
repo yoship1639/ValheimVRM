@@ -883,14 +883,44 @@ namespace ValheimVRM
 							}
 						}
 						else
-						{
-							Debug.LogError("[ValheimVRM] VRM file not found: " + path);
+						{ //default character stuff
+							if (!VrmManager.VrmDic.ContainsKey("___Default"))
+							{
+								var defaultPath = Path.Combine(Environment.CurrentDirectory, "ValheimVRM", "___Default.vrm");
+
+								if (File.Exists(defaultPath))
+								{
+									var vrmVisual = VRM.ImportVisual(defaultPath, settings.ModelScale);
+									if (vrmVisual != null)
+									{
+										vrm = new VRM(vrmVisual, "___Default");
+										vrm = VrmManager.RegisterVrm(vrm, __instance.GetComponentInChildren<LODGroup>());
+										if (vrm != null)
+										{
+											vrm.Src = File.ReadAllBytes(defaultPath);
+											vrm.RecalculateSrcBytesHash();
+										}
+									}
+								}
+		
+							}
+							else
+							{
+								vrm = VrmManager.VrmDic["___Default"];
+							}
+		
 						}
+
 					}
 					else
 					{
 						vrm = VrmManager.VrmDic[playerName];
 					}
+				}
+				else
+				{
+					Debug.LogError("Settings are still null");
+
 				}
 
 				if (vrm != null)

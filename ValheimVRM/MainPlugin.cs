@@ -21,6 +21,9 @@ namespace ValheimVRM
             // we have some global settings to load
             Settings.ReloadGlobalSettings();
             
+            // a semi hacky way of loading a default character, no one can name a character with and underscore as far as i am aware. 
+            Settings.AddSettingsFromFile("___Default", false);
+            
             // Harmonyパッチ作成
             var harmony = new Harmony("com.yoship1639.plugins.valheimvrm.patch");
 

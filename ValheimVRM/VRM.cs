@@ -61,36 +61,18 @@ namespace ValheimVRM
 			
 			try
 			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParsePath(path);
+				var data = new GlbFileParser(path).Parse();
+				var vrm = new VRMData(data);
+				var context = new VRMImporterContext(vrm);
+				var loaded = default(RuntimeGltfInstance);
+				loaded = context.Load();
+				loaded.ShowMeshes();
 
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
+				loaded.Root.transform.localScale = Vector3.one * scale;
 
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
+				Debug.Log("[ValheimVRM] VRM read successful");
 
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale = Vector3.one * scale;
-
-					Debug.Log("[ValheimVRM] VRM read successful");
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
+				return loaded.Root;
 			}
 			catch (Exception ex)
 			{
@@ -100,42 +82,24 @@ namespace ValheimVRM
 			return null;
 		}
 
-		public static GameObject ImportVisual(byte[] buf, float scale)
+		public static GameObject ImportVisual(byte[] buf, string path, float scale)
 		{
 			Debug.Log("[ValheimVRM] loading vrm from memory, " + buf.Length + " bytes");
 			
 			try
 			{
-				// 1. GltfParser を呼び出します。
-				//    GltfParser はファイルから JSON 情報とバイナリデータを読み出します。
-				var parser = new GltfParser();
-				parser.ParseGlb(buf);
+				var data = new GlbBinaryParser(buf, path).Parse();
+				var vrm = new VRMData(data);
+				var context = new VRMImporterContext(vrm);
+				var loaded = default(RuntimeGltfInstance);
+				loaded = context.Load();
+				loaded.ShowMeshes();
 
-				// 2. GltfParser のインスタンスを引数にして VRMImporterContext を作成します。
-				//    VRMImporterContext は VRM のロードを実際に行うクラスです。
-				using (var context = new VRMImporterContext(parser))
-				{
-					// 3. Load 関数を呼び出し、VRM の GameObject を生成します。
-					context.Load();
+				loaded.Root.transform.localScale = Vector3.one * scale;
 
-					// 4. （任意） SkinnedMeshRenderer の UpdateWhenOffscreen を有効にできる便利関数です。
-					context.EnableUpdateWhenOffscreen();
+				Debug.Log("[ValheimVRM] VRM read successful");
 
-					// 5. VRM モデルを表示します。
-					context.ShowMeshes();
-
-					// 6. VRM の GameObject が実際に使用している UnityEngine.Object リソースの寿命を VRM の GameObject に紐付けます。
-					//    つまり VRM の GameObject の破棄時に、実際に使用しているリソース (Texture, Material, Mesh, etc) をまとめて破棄することができます。
-					context.DisposeOnGameObjectDestroyed();
-
-					context.Root.transform.localScale = Vector3.one * scale;
-
-					Debug.Log("[ValheimVRM] VRM read successful");
-
-					// 7. Root の GameObject を return します。
-					//    Root の GameObject とは VRMMeta コンポーネントが付与されている GameObject のことです。
-					return context.Root;
-				}
+				return loaded.Root;
 			}
 			catch (Exception ex)
 			{

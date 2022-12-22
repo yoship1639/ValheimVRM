@@ -544,7 +544,7 @@ namespace ValheimVRM
 						var scale = settings.ModelScale;
 
 						byte[] vrmBytes = process.GetVrmData();
-						VRM newVrm = new VRM(VRM.ImportVisual(process.GetVrmData(), scale), vrmName);
+						VRM newVrm = new VRM(VRM.ImportVisual(process.GetVrmData(), vrmPath, scale), vrmName);
 						newVrm = VrmManager.RegisterVrm(newVrm, player.GetComponentInChildren<LODGroup>());
 						if (newVrm != null)
 						{
