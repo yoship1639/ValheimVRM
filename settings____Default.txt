@@ -1,0 +1,1 @@
+﻿// if using a default character this needs to be paired with ___Default.vrm
