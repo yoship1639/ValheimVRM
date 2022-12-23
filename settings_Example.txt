@@ -38,10 +38,10 @@ SleepingOffset=(0, 0, 0)
 //--- Equipment transformation ---//
 
 // Offset of the equipment position of the right hand
-RightHandEquipPos=(0, 0, 0)
+RightHandItemPos=(0, 0, 0)
 
 // Offset of the equipment position of the left hand
-LeftHandEquipPos=(0, 0, 0)
+LeftHandItemPos=(0, 0, 0)
 
 // Offset of back item position of the right hand. (+Y is forward, +Z is down, +X is right)
 RightHandBackItemPos=(0, 0, 0)
