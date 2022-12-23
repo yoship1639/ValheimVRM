@@ -391,7 +391,7 @@ namespace ValheimVRM
         public static VrmSettingsContainer GetSettings(string playerName)
         {
             // if player settings dont exist, load default ones.
-            return playerSettings.ContainsKey(playerName) ? playerSettings[playerName] : playerSettings["___Default"] ;
+            return playerSettings.ContainsKey(playerName) ? playerSettings[playerName] : playerSettings.ContainsKey("___Default") ? playerSettings["___Default"] : null ;
         }
 
         public static void AddSettingsFromFile(string playerName, bool shared)
