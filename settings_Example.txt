@@ -44,11 +44,18 @@ RightHandItemPos=(0, 0, 0)
 LeftHandItemPos=(0, 0, 0)
 
 // Offset of back item position of the right hand. (+Y is forward, +Z is down, +X is right)
+//right back items(when you press R)
 RightHandBackItemPos=(0, 0, 0)
+KnifeSidePos=(0, 0, 0)
+KnifeSideRot=(0, 0, 0)
+StaffPos=(0, 0, 0)
+StaffRot=(0, 0, 0)
 
 // Offset of back item position of the left hand. (+Y is forward, +Z is down, +X is right)
+//left back items(when you press R)
 LeftHandBackItemPos=(0, 0, 0)
-
+BowBackPos=(0, 0, 0)
+StaffSkeletonPos=(0, 0, 0)
 
 
 //--- Misc ---//

@@ -293,12 +293,18 @@ namespace ValheimVRM
 			{
 				var rightBackName = Utils.GetField<VisEquipment>("m_rightBackItem").GetValue(__instance);
 				var isKnife = rightBackName.ToString().Substring(0, 5) == "Knife";
+				var isStaff = rightBackName.ToString().Substring(0, 5) == "Staff";
 				
 				Vector3 offset = Vector3.zero;
 				
 				if (isKnife)
 				{
 					offset = settings.KnifeSidePos;
+					rightBackItem.transform.Rotate(settings.KnifeSideRot);
+				} else if (isStaff)
+				{
+					offset = settings.StaffPos;
+					rightBackItem.transform.Rotate(settings.StaffRot);
 				}
 				else
 				{
@@ -306,19 +312,24 @@ namespace ValheimVRM
 				}
 
 				rightBackItem.transform.localPosition = offset / 100.0f;
-				rightBackItem.transform.Rotate(settings.KnifeSideRot);
 				rightBackItem.transform.localScale = equipmentScaleVector / 100.0f;
 			}
 			
 			var leftBackItem = __instance.GetField<VisEquipment, GameObject>("m_leftBackItemInstance");
 			if (leftBackItem != null)
 			{
+				
 				var leftBackName = Utils.GetField<VisEquipment>("m_leftBackItem").GetValue(__instance);
+				Debug.Log(leftBackName.ToString());
 
 				var isBow = leftBackName.ToString().Substring(0, 3) == "Bow";
+				var isStaffSkeleton = leftBackName.ToString() == "StaffSkeleton";
 				if (isBow)
 				{
 					leftBackItem.transform.localPosition = settings.BowBackPos / 100.0f;
+				} else if (isStaffSkeleton)
+				{
+					leftBackItem.transform.localPosition = settings.StaffSkeletonPos / 100.0f;
 				}
 				else
 				{

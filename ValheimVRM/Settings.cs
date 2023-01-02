@@ -215,6 +215,9 @@ namespace ValheimVRM
             public Vector3 BowBackPos = Vector3.zero;
             public Vector3 KnifeSidePos = Vector3.zero;
             public Vector3 KnifeSideRot = Vector3.zero;
+            public Vector3 StaffPos = Vector3.zero;
+            public Vector3 StaffSkeletonPos = Vector3.zero;
+            public Vector3 StaffRot = Vector3.zero;
 
             public bool HelmetVisible = false;
             public Vector3 HelmetScale = Vector3.one;
