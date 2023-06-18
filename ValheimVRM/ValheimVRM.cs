@@ -320,7 +320,7 @@ namespace ValheimVRM
 			{
 				
 				var leftBackName = Utils.GetField<VisEquipment>("m_leftBackItem").GetValue(__instance);
-				Debug.Log(leftBackName.ToString());
+				//Debug.Log(leftBackName.ToString());
 
 				var isBow = leftBackName.ToString().Substring(0, 3) == "Bow";
 				var isStaffSkeleton = leftBackName.ToString() == "StaffSkeleton";
@@ -623,7 +623,7 @@ namespace ValheimVRM
 		}
 	}
 	
-	[HarmonyPatch(typeof(ItemDrop.ItemData), "GetTooltip", new Type[] {typeof(ItemDrop.ItemData), typeof(int), typeof(bool)})]
+	[HarmonyPatch(typeof(ItemDrop.ItemData), "GetTooltip", new Type[] {typeof(ItemDrop.ItemData), typeof(int), typeof(bool), typeof(float)})]
 	static class Patch_ItemData_GetTooltip
 	{
 		public static float GetFoodHealth(float baseValue, Player player)
