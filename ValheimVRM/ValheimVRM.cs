@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Xml.Linq;
 using UniGLTF;
 using UnityEngine;
 using VRM;
@@ -293,12 +294,14 @@ namespace ValheimVRM
 									color.g *= brightness;
 									color.b *= brightness;
 									mat.SetColor("_Color", color);
-								}
-							}
-						}
-						else
+                                }
+                            }
+                        }
+                        else
 						{
-							var shader = Shader.Find("Custom/Player");
+                            var smr2 = __instance.GetComponentInChildren<SkinnedMeshRenderer>();
+                            var shader = smr2.sharedMaterial.shader;
+                            // Debug.LogError(shader);
 							foreach (var mat in materials)
 							{
 								if (mat.shader == shader) continue;
@@ -372,7 +375,7 @@ namespace ValheimVRM
 				orgAnim.keepAnimatorControllerStateOnDisable = true;
 				orgAnim.cullingMode = AnimatorCullingMode.AlwaysAnimate;
 
-				vrmModel.transform.localPosition = orgAnim.transform.localPosition;
+                vrmModel.transform.localPosition = orgAnim.transform.localPosition;
 
 				// アニメーション同期
 				var offsetY = Settings.ReadFloat(playerName, "ModelOffsetY");
@@ -409,10 +412,10 @@ namespace ValheimVRM
 					springBone.m_updateType = VRMSpringBone.SpringBoneUpdateType.FixedUpdate;
 					springBone.m_center = null;
 				}
-			}
-		}
+            }
+        }
 
-		private static GameObject ImportVRM(string path, float scale)
+        private static GameObject ImportVRM(string path, float scale)
 		{
 			try
 			{
@@ -436,5 +439,5 @@ namespace ValheimVRM
 
 			return null;
 		}
-	}
+    }
 }
